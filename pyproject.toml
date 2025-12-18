@@ -13,19 +13,19 @@ authors = [{ name = "GoodPuppy Team" }]
 
 dependencies = [
     # Web framework
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
+    "fastapi~=0.115.0",
+    "uvicorn[standard]~=0.32.0",
 
     # Templates & Forms
-    "jinja2>=3.1.4",
-    "python-multipart>=0.0.12",  # Form handling
+    "jinja2~=3.1.4",
+    "python-multipart~=0.0.12",  # Form handling
 
     # Configuration
-    "pydantic>=2.10.0",
-    "pydantic-settings>=2.6.0",
+    "pydantic~=2.10.0",
+    "pydantic-settings~=2.6.0",
 
     # Logging
-    "structlog>=24.4.0",
+    "structlog~=24.4.0",
 ]
 
 [project.optional-dependencies]

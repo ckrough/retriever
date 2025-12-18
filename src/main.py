@@ -4,7 +4,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from src.api.health import router as health_router
 from src.config import get_settings
@@ -19,14 +18,10 @@ app = FastAPI(
     redoc_url="/redoc" if settings.debug else None,
 )
 
-# Static files and templates
+# Static files (optional - only mount if directory exists)
 static_path = Path(__file__).parent / "web" / "static"
-templates_path = Path(__file__).parent / "web" / "templates"
-
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=static_path), name="static")
-
-templates = Jinja2Templates(directory=templates_path)
 
 # Register routers
 app.include_router(health_router, prefix="/health", tags=["health"])

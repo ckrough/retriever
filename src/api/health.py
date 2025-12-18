@@ -1,9 +1,11 @@
 """Health check endpoints."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+
+from src.config import Settings, get_settings
 
 router = APIRouter()
 
@@ -16,9 +18,8 @@ class HealthResponse(BaseModel):
 
 
 @router.get("", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
+async def health_check(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> HealthResponse:
     """Basic health check endpoint."""
-    from src.config import get_settings
-
-    settings = get_settings()
     return HealthResponse(status="healthy", version=settings.app_version)

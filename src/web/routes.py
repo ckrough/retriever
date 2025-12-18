@@ -1,19 +1,20 @@
 """Web routes for server-rendered pages."""
 
-from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, Response
+
+from src.web.templates import templates
 
 router = APIRouter()
 
-templates_path = Path(__file__).parent / "templates"
-templates = Jinja2Templates(directory=templates_path)
+# Input constraints
+MAX_QUESTION_LENGTH = 2000
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> HTMLResponse:
+async def index(request: Request) -> Response:
     """Render the main chat page."""
     return templates.TemplateResponse(
         request=request,
@@ -22,7 +23,10 @@ async def index(request: Request) -> HTMLResponse:
 
 
 @router.post("/ask", response_class=HTMLResponse)
-async def ask(request: Request, question: str = Form(...)) -> HTMLResponse:
+async def ask(
+    request: Request,
+    question: Annotated[str, Form(min_length=1, max_length=MAX_QUESTION_LENGTH)],
+) -> Response:
     """Handle a question submission and return the answer fragment."""
     # Hardcoded response for walking skeleton
     answer = "Hello! I'm GoodPuppy, the volunteer assistant. I'll be able to answer questions about shelter policies and procedures once I'm fully set up."
