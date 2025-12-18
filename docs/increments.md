@@ -57,14 +57,18 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - Type "Hello" → Get "Hello! I'm GoodPuppy, the volunteer assistant."
 
 **Build:**
-- [ ] Project setup (pyproject.toml, dev container)
-- [ ] FastAPI app with single route
-- [ ] Jinja2 template with Tailwind (chat UI)
-- [ ] HTMX for form submission
-- [ ] Hardcoded response (no LLM yet)
-- [ ] Health endpoint `/health`
+- [x] Project setup (pyproject.toml, dev container)
+- [x] FastAPI app with single route
+- [x] Jinja2 template with Tailwind (chat UI)
+- [x] HTMX for form submission
+- [x] Hardcoded response (no LLM yet)
+- [x] Health endpoint `/health`
+- [x] Input validation (1-2000 chars) *(added during code review)*
+- [x] XSS prevention tests *(added during code review)*
 
 **Validates:** Dev environment, FastAPI, HTMX, Tailwind, deployment pipeline
+
+**Status:** ✅ Complete (PR #1)
 
 ---
 
@@ -91,7 +95,7 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - [ ] Request timeouts (30s for LLM calls)
 - [ ] Circuit breaker for LLM calls (fail fast after 5 failures)
 - [ ] Rate limiting (10 requests/minute per session)
-- [ ] Input validation (max 2000 chars, basic sanitization)
+- [x] Input validation (max 2000 chars, basic sanitization) *(done in Increment 1)*
 
 **Validates:** LLM integration, provider abstraction, error handling, resilience
 
