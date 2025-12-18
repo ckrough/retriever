@@ -19,17 +19,17 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      DOCUMENT PIPELINE                          │
-│  [Word/MD/Text] → [Loaders] → [Chunker] → [Embeddings] → [DB]  │
+│  [Word/MD/Text] → [Loaders] → [Chunker] → [Embeddings] → [DB]   │
 └─────────────────────────────────────────────────────────────────┘
                                                         ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                        QUERY FLOW                               │
-│  [User Question] → [Embed] → [Retrieve] → [Claude] → [Answer]  │
+│  [User Question] → [Embed] → [Retrieve] → [Claude] → [Answer]   │
 └─────────────────────────────────────────────────────────────────┘
                               ↑
 ┌─────────────────────────────────────────────────────────────────┐
 │                      WEB APPLICATION                            │
-│  [FastAPI Backend] ←→ [Simple Frontend] ←→ [Volunteer Browser] │
+│  [FastAPI Backend] ←→ [Simple Frontend] ←→ [Volunteer Browser]  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -76,18 +76,18 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 - Dependencies point inward (business logic doesn't know about FastAPI)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      GoodPuppy (Monolith)                   │
+┌────────────────────────────────────────────────────────────┐
+│                      GoodPuppy (Monolith)                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
 │  │   Auth       │  │    RAG       │  │   Documents  │      │
 │  │   Module     │  │   Module     │  │   Module     │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
-│                           ↓                                 │
+│                           ↓                                │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │              Shared Infrastructure                   │   │
+│  │              Shared Infrastructure                  │   │
 │  │        (config, LLM providers, vector DB)           │   │
 │  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────┘
                             │
                      REST/JSON API (v1)
                             │
@@ -168,11 +168,21 @@ goodpuppy/
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py         # LLMProvider Protocol
 │   │   │   ├── openrouter.py   # OpenRouter implementation
+│   │   │   ├── resilient.py    # Fallback chain provider
 │   │   │   └── factory.py      # Provider factory
 │   │   ├── vectordb/           # Vector database abstraction
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py         # VectorStore Protocol
 │   │   │   └── chroma.py       # Chroma implementation
+│   │   ├── cache/              # Semantic caching
+│   │   │   ├── __init__.py
+│   │   │   └── semantic_cache.py  # Answer cache by question similarity
+│   │   ├── safety/             # Content safety (expanded)
+│   │   │   ├── __init__.py
+│   │   │   ├── moderation.py   # OpenAI Moderation API
+│   │   │   ├── guardrails.py   # Input/output validation
+│   │   │   ├── hallucination.py    # Hallucination detection
+│   │   │   └── prompt_injection.py # Injection attack detection
 │   │   ├── embeddings.py       # Embedding generation
 │   │   └── database.py         # User DB (SQLite for MVP)
 │   │
@@ -197,12 +207,20 @@ goodpuppy/
 ├── data/                        # Chroma + SQLite persistent storage
 ├── tests/
 │   ├── conftest.py
+│   ├── unit/                    # Fast, isolated unit tests
+│   ├── integration/             # Tests with real dependencies
+│   ├── e2e/                     # Full workflow tests
+│   ├── rag_evaluation/          # RAG quality tests
+│   │   ├── golden_dataset.py    # Q&A pairs for quality testing
+│   │   └── test_rag_quality.py  # Retrieval & answer accuracy tests
 │   ├── modules/
 │   │   ├── test_auth/
 │   │   ├── test_rag/
 │   │   └── test_documents/
 │   └── infrastructure/
-│       └── test_llm/
+│       ├── test_llm/
+│       ├── test_cache/
+│       └── test_safety/
 ├── pyproject.toml
 ├── .env.example
 └── README.md
@@ -261,11 +279,12 @@ Each increment delivers a **working, visible feature** from backend to UI.
 - [ ] Environment config for API keys
 - [ ] Loading spinner in UI
 - [ ] Error handling + display
-- [ ] Request timeouts (10s default)
+- [ ] Request timeouts (30s for LLM calls)
+- [ ] Circuit breaker for LLM calls (fail fast after 5 failures)
 - [ ] Rate limiting (10 requests/minute per session)
 - [ ] Input validation (max 2000 chars, basic sanitization)
 
-**Validates:** LLM integration, provider abstraction, error handling, basic protection
+**Validates:** LLM integration, provider abstraction, error handling, resilience
 
 ---
 
@@ -320,28 +339,55 @@ Each increment delivers a **working, visible feature** from backend to UI.
 
 ---
 
-### Increment 5: Content Safety 🛡️
-**Goal:** Filter inappropriate questions and responses.
+### Increment 5: RAG Quality Hardening 🎯
+**Goal:** Production-grade RAG quality: caching, evaluation, hybrid retrieval.
 
-**Deliverable:** Inappropriate content is blocked with friendly message.
+**Deliverable:** Faster responses, measurable quality, better retrieval.
 
 **What you'll see:**
-- Ask inappropriate question → "I can only help with volunteer questions"
-- Off-topic question → "I don't have information about that"
-- Logged for review (without storing harmful content)
+- Repeated questions return instantly (~50ms vs ~3s)
+- RAG quality tests run in CI with pass/fail
+- Answers cite sources more accurately
 
 **Build:**
-- [ ] OpenAI Moderation API integration
-- [ ] Input filtering
-- [ ] Output filtering
-- [ ] Fallback responses
-- [ ] Safety logging
+- [ ] Semantic caching (cache by question similarity)
+- [ ] Golden Q&A dataset (30+ examples from real docs)
+- [ ] RAG quality tests (retrieval accuracy, answer accuracy)
+- [ ] Hybrid retrieval (semantic + BM25 keyword search)
+- [ ] Reranking integration (Cohere or RRF)
+- [ ] Cache invalidation on document reindex
+- [ ] Quality metrics logging
 
-**Validates:** Content moderation, user experience for edge cases
+**Validates:** Cache effectiveness, retrieval quality improvement, regression detection
 
 ---
 
-### Increment 6: User Authentication 🔐
+### Increment 6: Content Safety 🛡️
+**Goal:** Filter inappropriate content, detect attacks, prevent hallucinations.
+
+**Deliverable:** Safe, accurate answers with attack prevention.
+
+**What you'll see:**
+- Ask inappropriate question → "I can only help with volunteer questions"
+- Prompt injection attempt → Blocked and logged
+- Answers verified against source documents
+- Low-confidence answers flagged for review
+
+**Build:**
+- [ ] OpenAI Moderation API integration
+- [ ] Input/output filtering
+- [ ] Prompt injection detection (pattern-based)
+- [ ] Hallucination detection (claim verification)
+- [ ] Confidence scoring for answers
+- [ ] Fallback responses for low-confidence
+- [ ] Safety logging (without storing harmful content)
+- [ ] Model fallback chain (Sonnet → Haiku)
+
+**Validates:** Content moderation, attack prevention, answer accuracy
+
+---
+
+### Increment 7: User Authentication 🔐
 **Goal:** Volunteers must log in to use the app.
 
 **Deliverable:** Login page, protected chat, user sessions.
@@ -364,7 +410,7 @@ Each increment delivers a **working, visible feature** from backend to UI.
 
 ---
 
-### Increment 7: Conversation History 💬
+### Increment 8: Conversation History 💬
 **Goal:** Remember conversation within a session.
 
 **Deliverable:** Follow-up questions work, can see past Q&A.
@@ -384,7 +430,7 @@ Each increment delivers a **working, visible feature** from backend to UI.
 
 ---
 
-### Increment 8: Q&A Audit Logging 📊
+### Increment 9: Q&A Audit Logging 📊
 **Goal:** Track all questions and answers for improvement.
 
 **Deliverable:** Admin can see what volunteers are asking.
@@ -405,7 +451,7 @@ Each increment delivers a **working, visible feature** from backend to UI.
 
 ---
 
-### Increment 9: Observability & Monitoring 📈
+### Increment 10: Observability & Monitoring 📈
 **Goal:** Production-ready monitoring.
 
 **Deliverable:** Error tracking, structured logs, cost visibility.
@@ -427,7 +473,7 @@ Each increment delivers a **working, visible feature** from backend to UI.
 
 ---
 
-### Increment 10: Feedback & Improvement 👍
+### Increment 11: Feedback & Improvement 👍
 **Goal:** Volunteers can rate answers.
 
 **Deliverable:** Thumbs up/down on answers, feedback loop.
@@ -447,7 +493,7 @@ Each increment delivers a **working, visible feature** from backend to UI.
 
 ---
 
-### Increment 11: Mobile Polish 📱
+### Increment 12: Mobile Polish 📱
 **Goal:** Excellent mobile experience.
 
 **Deliverable:** Fully responsive, touch-friendly on all devices.
@@ -468,7 +514,7 @@ Each increment delivers a **working, visible feature** from backend to UI.
 
 ---
 
-### Increment 12: Production Deployment 🚀
+### Increment 13: Production Deployment 🚀
 **Goal:** Live on the internet, ready for volunteers.
 
 **Deliverable:** Deployed app with documentation.
@@ -496,60 +542,141 @@ Each increment delivers a **working, visible feature** from backend to UI.
         ↓
 2. LLM Integration
         ↓
-3. Single Document RAG ←─── Core MVP
+3. Single Document RAG ←─── Core MVP (functional Q&A)
         ↓
 4. Multi-Document
         ↓
-    ┌───┴───┐
-    ↓       ↓
-5. Safety  6. Auth
-    ↓       ↓
-    └───┬───┘
-        ↓
-7. Conversation History
-        ↓
-8. Audit Logging
+5. RAG Quality Hardening ←─── Quality MVP (caching, evaluation, hybrid search)
         ↓
     ┌───┴───┐
     ↓       ↓
-9. Observability  10. Feedback
+6. Safety  7. Auth
     ↓       ↓
     └───┬───┘
         ↓
-11. Mobile Polish
+8. Conversation History
         ↓
-12. Production
+9. Audit Logging
+        ↓
+    ┌────┴────┐
+    ↓         ↓
+10. Observability  11. Feedback
+    ↓         ↓
+    └────┬────┘
+         ↓
+12. Mobile Polish
+         ↓
+13. Production
 ```
 
-**MVP = Increments 1-4** (functional Q&A from documents)
+**Core MVP = Increments 1-4** (functional Q&A from documents)
+**Quality MVP = Increments 1-5** (production-grade RAG with caching and evaluation)
 
 ---
 
 ## Key Design Decisions
 
 ### Chunking Strategy
-- **Method**: Recursive character text splitter
-- **Chunk size**: ~500 tokens (roughly 2000 chars)
-- **Overlap**: 100 tokens (400 chars)
-- **Rationale**: Balances context preservation with retrieval precision
+- **Method**: Structure-aware recursive text splitter
+- **Chunk size**: ~375 tokens (1500 chars) - leaves room for prompt context
+- **Overlap**: 200 tokens (800 chars) - larger overlap preserves context across boundaries
+- **Separator hierarchy**: Section headers → Paragraphs → Sentences → Words
+- **Metadata preserved**: Source document, section title, chunk type (list/paragraph/table)
+- **Rationale**: Document structure matters - splitting mid-sentence or mid-list degrades retrieval quality
+
+**Implementation approach:**
+```python
+# Respect document structure when chunking
+separators = [
+    "\n## ",     # H2 headers (section breaks)
+    "\n### ",    # H3 headers (subsections)
+    "\n\n",      # Paragraphs
+    "\n",        # Lines
+    ". ",        # Sentences
+    " ",         # Words (last resort)
+]
+
+# Each chunk includes metadata:
+{
+    "chunk_id": "doc_123_chunk_5",
+    "source_doc": "Volunteer Handbook",
+    "section": "Check-in Procedures",
+    "chunk_type": "paragraph" | "list" | "table",
+    "page_number": 12  # if available
+}
+```
 
 ### Retrieval Strategy
-- **Top-K**: Retrieve top 5 chunks
-- **Similarity threshold**: 0.7 minimum score
-- **Re-ranking**: Not for MVP (add if quality issues arise)
+- **Approach**: Hybrid search (semantic + keyword) with reranking
+- **Over-retrieve**: Fetch top 10 chunks initially
+- **Final top-K**: Return top 5 after reranking
+- **Similarity threshold**: Validated on domain data (not arbitrary 0.7)
+- **Re-ranking**: Cohere rerank API (~$0.001/query) or Reciprocal Rank Fusion (free)
+
+**Why hybrid search matters:**
+- Semantic search misses exact keyword matches ("check-in" vs "sign in")
+- Keyword search misses semantic similarity ("entrance" vs "front desk")
+- Combining both improves recall significantly
+
+**Implementation approach:**
+```python
+async def retrieve(self, query: str, top_k: int = 5) -> list[Chunk]:
+    # 1. Semantic search (over-retrieve)
+    semantic_chunks = await self.vector_store.similarity_search(query, k=top_k * 2)
+
+    # 2. Keyword search (BM25 on chunk text)
+    keyword_chunks = await self.keyword_search(query, k=top_k)
+
+    # 3. Merge and deduplicate
+    merged = self._merge_results(semantic_chunks, keyword_chunks)
+
+    # 4. Rerank (Cohere API or RRF)
+    reranked = await self._rerank(query, merged, top_k)
+
+    return reranked[:top_k]
+```
 
 ### Prompt Design
-```
-You are a helpful assistant for [Shelter Name] volunteers.
-Answer questions based ONLY on the provided context.
-If the answer is not in the context, say "I don't have information about that in our documents."
-Always cite which document the information comes from.
 
-Context:
-{retrieved_chunks}
+**System prompt:**
+```
+You are GoodPuppy, an AI assistant for {shelter_name} volunteers.
+
+Your job is to answer questions using ONLY the provided policy documents.
+
+RULES:
+1. If the answer is in the documents, provide a clear, concise response
+2. If the answer is NOT in the documents, say: "I don't have information about that in our volunteer documentation."
+3. If you're uncertain, say: "Based on the available information, [answer], but I recommend confirming with your volunteer coordinator."
+4. ALWAYS cite your sources in this format: (Source: [Document Name], Section [X])
+5. Keep answers under 150 words unless the question requires detail
+6. If multiple documents have conflicting information, mention both and flag the discrepancy
+```
+
+**User prompt template:**
+```
+Here are relevant excerpts from our volunteer documentation:
+
+[1] Source: Volunteer Handbook, Section: Check-in Procedures
+{chunk_1_text}
+
+---
+
+[2] Source: Safety Guidelines, Section: Emergency Protocols
+{chunk_2_text}
+
+---
 
 Question: {user_question}
+
+Remember: Only answer based on the excerpts above. Cite your sources.
 ```
+
+**Key improvements:**
+- Explicit citation format for consistency
+- Uncertainty handling ("I recommend confirming...")
+- Conflict detection for contradictory documents
+- Length constraint to prevent rambling
 
 ### LLM Provider Abstraction (ADR-002)
 ```python
@@ -604,6 +731,311 @@ class OpenRouterProvider:
 
 ---
 
+## RAG Quality Hardening
+
+Production RAG systems require quality controls beyond basic retrieval + generation. This section covers critical hardening measures.
+
+### 1. Semantic Caching (ADR-013)
+
+**Problem:** Volunteers ask similar questions repeatedly. Without caching:
+- Unnecessary LLM costs
+- 3-second responses instead of 50ms
+- Higher load on OpenRouter
+
+**Solution:** Cache answers based on semantic similarity of questions.
+
+```python
+# src/infrastructure/cache/semantic_cache.py
+class SemanticCache:
+    """Cache answers for semantically similar questions."""
+
+    def __init__(self, similarity_threshold: float = 0.95):
+        self.threshold = similarity_threshold
+
+    async def get(self, question: str) -> Answer | None:
+        """Return cached answer if similar question was asked."""
+        question_embedding = await embed(question)
+        results = self.cache_collection.query(
+            query_embeddings=[question_embedding],
+            n_results=1
+        )
+
+        if results and results['distances'][0][0] < (1 - self.threshold):
+            return Answer.parse_raw(results['documents'][0][0])
+        return None
+
+    async def set(self, question: str, answer: Answer, ttl_hours: int = 24) -> None:
+        """Store answer in cache (only for high-confidence answers)."""
+        # Only cache high-confidence answers
+        if answer.confidence != "high":
+            return
+        # ... store in cache collection
+```
+
+**Expected impact:**
+- ~40% cache hit rate for common questions
+- 60x faster responses for cached queries (3s → 50ms)
+- ~40% reduction in LLM costs
+
+**Cache invalidation:** Clear cache when documents are reindexed.
+
+---
+
+### 2. Hallucination Detection (ADR-014)
+
+**Problem:** LLM may generate information not present in source documents. This is the #1 risk in RAG systems.
+
+**Solution:** Validate that answer claims are grounded in retrieved chunks.
+
+```python
+# src/infrastructure/safety/hallucination_detector.py
+class HallucinationDetector:
+    """Detect when LLM generates information not in source chunks."""
+
+    async def check(self, answer: str, chunks: list[Chunk]) -> bool:
+        """
+        Returns True if answer is grounded, False if hallucinated.
+
+        Approach:
+        1. Extract factual claims from answer
+        2. Check if each claim is supported by chunks
+        3. Flag if >20% of claims are unsupported
+        """
+        claims = self._extract_claims(answer)
+
+        supported_count = 0
+        for claim in claims:
+            if await self._is_supported(claim, chunks):
+                supported_count += 1
+
+        support_ratio = supported_count / len(claims) if claims else 1.0
+        return support_ratio >= 0.8  # 80% of claims must be supported
+```
+
+**When hallucination detected:**
+```python
+if not await hallucination_detector.check(answer_text, chunks):
+    logger.warning("Hallucination detected", answer=answer_text)
+    return Answer(
+        text="I don't have enough information to answer that confidently.",
+        confidence="low",
+        needs_human_review=True
+    )
+```
+
+**Cost:** Adds ~100ms latency, ~$0.0001/query. Worth it for accuracy.
+
+---
+
+### 3. RAG Evaluation Dataset
+
+**Problem:** Without a test dataset, you can't measure RAG quality or detect regressions.
+
+**Solution:** Create a golden Q&A dataset from actual documents.
+
+```python
+# tests/rag_evaluation/golden_dataset.py
+GOLDEN_QA_PAIRS = [
+    {
+        "question": "Where do volunteers sign in?",
+        "expected_answer_contains": "front desk",
+        "expected_source": "Volunteer Handbook",
+        "category": "orientation"
+    },
+    {
+        "question": "What do I do if a dog bites me?",
+        "expected_answer_contains": ["immediately", "notify staff"],
+        "expected_source": "Safety Procedures",
+        "category": "safety"
+    },
+    # ... 30-50 examples covering key topics
+]
+
+# tests/rag_evaluation/test_rag_quality.py
+@pytest.mark.asyncio
+async def test_retrieval_accuracy():
+    """Correct source document should be in top-3 chunks."""
+    rag = RAGService()
+    correct = 0
+
+    for qa in GOLDEN_QA_PAIRS:
+        chunks = await rag.retriever.retrieve(qa["question"])
+        sources = [c.source_doc for c in chunks[:3]]
+        if qa["expected_source"] in sources:
+            correct += 1
+
+    accuracy = correct / len(GOLDEN_QA_PAIRS)
+    assert accuracy >= 0.80, f"Retrieval accuracy {accuracy:.2%} below 80% threshold"
+```
+
+**Metrics to track:**
+
+| Metric | Target | How to Measure |
+|--------|--------|----------------|
+| Retrieval accuracy | >80% | Correct doc in top-3 |
+| Answer accuracy | >85% | Expected keywords in answer |
+| Citation accuracy | >90% | Correct source cited |
+| Hallucination rate | <5% | Unsupported claims |
+
+---
+
+### 4. Prompt Injection Defense (ADR-015)
+
+**Problem:** Users may attempt "Ignore previous instructions..." attacks.
+
+**Solution:** Pattern-based detection for known injection attempts.
+
+```python
+# src/infrastructure/safety/prompt_injection.py
+import re
+
+INJECTION_PATTERNS = [
+    r"ignore (previous|above|all) (instructions|rules)",
+    r"disregard (all|your) (instructions|rules|guidelines)",
+    r"new (instructions|task|role)",
+    r"you are now",
+    r"system prompt",
+    r"reveal (your|the) (instructions|prompt|api)",
+]
+
+def is_prompt_injection(question: str) -> bool:
+    """Detect common prompt injection patterns."""
+    question_lower = question.lower()
+    for pattern in INJECTION_PATTERNS:
+        if re.search(pattern, question_lower):
+            return True
+    return False
+
+# In RAG service
+async def ask(self, question: str) -> Answer:
+    if is_prompt_injection(question):
+        logger.warning("Prompt injection attempt", question=question[:100])
+        return Answer(
+            text="I can only answer questions about volunteer policies and procedures.",
+            flagged=True
+        )
+```
+
+---
+
+### 5. Answer Quality Controls
+
+**Problem:** Need confidence scoring and graceful degradation.
+
+**Solution:** Add confidence assessment and fallback behavior.
+
+```python
+# src/modules/rag/generator.py
+class AnswerGenerator:
+    async def generate(self, question: str, chunks: list[Chunk]) -> Answer:
+        # 1. Check if chunks are relevant enough
+        relevance_scores = [c.score for c in chunks]
+        if not chunks or max(relevance_scores) < 0.6:
+            return Answer(
+                text="I don't have relevant information about that in our documentation.",
+                confidence="low",
+                sources=[]
+            )
+
+        # 2. Generate answer
+        raw_answer = await self.llm.complete(system_prompt, user_prompt)
+
+        # 3. Self-assessment for confidence
+        confidence = await self._assess_confidence(question, raw_answer, chunks)
+
+        # 4. Check for hallucinations (high-value answers only)
+        if confidence == "high":
+            is_grounded = await self.hallucination_detector.check(raw_answer, chunks)
+            if not is_grounded:
+                confidence = "low"
+
+        return Answer(
+            text=raw_answer,
+            confidence=confidence,
+            sources=[c.source_doc for c in chunks],
+            needs_human_review=(confidence == "low")
+        )
+```
+
+---
+
+### 6. Model Fallback
+
+**Problem:** If Claude is unavailable, entire system fails.
+
+**Solution:** Fallback to cheaper/faster model, then graceful degradation.
+
+```python
+# src/infrastructure/llm/resilient_provider.py
+class ResilientLLMProvider:
+    """LLM provider with fallback chain."""
+
+    def __init__(self):
+        self.primary = OpenRouterProvider(model="anthropic/claude-sonnet-4")
+        self.fallback = OpenRouterProvider(model="anthropic/claude-haiku-4")
+
+    async def complete(self, system: str, user: str) -> str:
+        try:
+            return await self.primary.complete(system, user)
+        except (TimeoutError, RateLimitError) as e:
+            logger.warning("Primary model failed, trying fallback", error=str(e))
+            return await self.fallback.complete(system, user)
+        except Exception as e:
+            logger.error("All LLM providers failed", error=str(e))
+            raise LLMProviderError("Unable to generate answer") from e
+```
+
+**Graceful degradation:** If all LLMs fail, return retrieved chunks directly:
+```python
+except LLMProviderError:
+    return Answer(
+        text="I found these relevant sections:\n\n" + "\n\n".join(c.text for c in chunks),
+        confidence="low",
+        is_fallback=True
+    )
+```
+
+---
+
+### 7. RAG-Specific Monitoring
+
+**What to log for every request:**
+```python
+{
+    "request_id": "abc123",
+    "question": "Where do I sign in?",
+    "retrieval": {
+        "chunks_found": 5,
+        "top_score": 0.89,
+        "latency_ms": 45,
+        "sources": ["Volunteer Handbook"]
+    },
+    "generation": {
+        "model": "claude-sonnet-4",
+        "input_tokens": 2450,
+        "output_tokens": 145,
+        "latency_ms": 2300,
+        "cost_usd": 0.0087
+    },
+    "answer": {
+        "confidence": "high",
+        "has_citations": true,
+        "hallucination_check": "passed"
+    },
+    "cache": {
+        "hit": false
+    }
+}
+```
+
+**Alerts to configure:**
+- Average retrieval score drops below 0.7 for 1 hour
+- Hallucination rate exceeds 10%
+- Less than 50% of answers have citations
+- Cache hit rate drops significantly (may indicate doc changes)
+
+---
+
 ## Dependencies
 
 ```toml
@@ -621,6 +1053,8 @@ dependencies = [
     "python-multipart>=0.0.9",   # Form handling
     "jinja2>=3.1.3",
     "httpx>=0.26.0",
+    "cohere>=5.0.0",             # Reranking for hybrid search
+    "rank-bm25>=0.2.2",          # BM25 keyword search
 ]
 
 [project.optional-dependencies]
@@ -848,25 +1282,32 @@ GET /health/detailed → Full status (for debugging)
 
 ---
 
-### 8. Resilience: Timeouts and Retries
+### 8. Resilience: Timeouts, Retries, and Circuit Breakers
 
-**Approach:** Start simple with timeouts and retries. Add circuit breakers only after observing real failure patterns.
+**Approach:** Timeouts + retries + circuit breakers for LLM calls. Circuit breakers prevent cascading failures when external APIs are degraded.
 
-**Libraries:** `tenacity` (retries) + `httpx` timeouts
+**Libraries:** `tenacity` (retries) + `httpx` (timeouts) + `aiobreaker` (circuit breaker)
 
 **Applied to:**
-| Dependency | Timeout | Retry Strategy |
-|------------|---------|----------------|
-| OpenRouter API | 30s | 2 retries, exponential backoff |
-| OpenAI Embeddings | 10s | 2 retries, exponential backoff |
-| Chroma | 5s | 1 retry (local, should be fast) |
+| Dependency | Timeout | Retry Strategy | Circuit Breaker |
+|------------|---------|----------------|-----------------|
+| OpenRouter API | 30s | 2 retries, exponential backoff | Open after 5 failures, 60s reset |
+| OpenAI Embeddings | 10s | 2 retries, exponential backoff | Open after 5 failures, 60s reset |
+| Chroma | 5s | 1 retry (local, should be fast) | None (local) |
 
 **Implementation:**
 ```python
 from tenacity import retry, stop_after_attempt, wait_exponential
+from aiobreaker import CircuitBreaker
 import httpx
 
-# Simple timeout + retry (no circuit breaker for MVP)
+# Circuit breaker for LLM calls
+llm_breaker = CircuitBreaker(
+    fail_max=5,           # Open after 5 consecutive failures
+    timeout_duration=60,  # Stay open for 60 seconds
+)
+
+@llm_breaker
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, max=5))
 async def call_openrouter(messages: list) -> str:
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -875,9 +1316,8 @@ async def call_openrouter(messages: list) -> str:
 
 **Fallback behavior:**
 - On timeout/error: Return friendly "Service temporarily unavailable, please try again" message
+- On circuit open: Fail immediately (don't wait for timeout)
 - Log all failures for pattern analysis
-
-**Future upgrade:** Add circuit breakers (`aiobreaker`) if you see cascading failures or need to fail fast.
 
 ---
 
@@ -921,18 +1361,23 @@ async def call_openrouter(messages: list) -> str:
 ```
 src/
 ├── infrastructure/
-│   ├── llm/                    # LLM providers (existing)
-│   ├── vectordb/               # Vector DB (existing)
+│   ├── llm/                    # LLM providers
+│   │   ├── base.py             # LLMProvider Protocol
+│   │   ├── openrouter.py       # OpenRouter implementation
+│   │   ├── resilient.py        # Fallback chain (Sonnet → Haiku)
+│   │   └── factory.py          # Provider factory
+│   ├── vectordb/               # Vector DB
+│   ├── cache/                  # Semantic caching
+│   │   └── semantic_cache.py   # Answer cache by question similarity
 │   ├── observability/          # Logging and error tracking
-│   │   ├── __init__.py
 │   │   ├── logging.py          # structlog setup
 │   │   └── sentry.py           # Sentry initialization
-│   ├── safety/                 # Content moderation
-│   │   ├── __init__.py
-│   │   ├── moderation.py
-│   │   └── guardrails.py
+│   ├── safety/                 # Content safety (expanded)
+│   │   ├── moderation.py       # OpenAI Moderation API
+│   │   ├── guardrails.py       # Input/output validation
+│   │   ├── hallucination.py    # Hallucination detection
+│   │   └── prompt_injection.py # Injection attack detection
 │   ├── costs/                  # Cost tracking
-│   │   ├── __init__.py
 │   │   ├── tracker.py
 │   │   └── alerts.py
 │   └── rate_limit.py           # Simple rate limiting
@@ -950,9 +1395,14 @@ Add to `pyproject.toml`:
 
 # Resilience
 "tenacity>=8.2.0",               # Retries with backoff
+"aiobreaker>=1.2.0",             # Circuit breaker for async calls
 
 # Rate limiting
 "slowapi>=0.1.9",                # Rate limiting for FastAPI
+
+# RAG Quality (from architect review)
+"cohere>=5.0.0",                 # Reranking for hybrid search
+"rank-bm25>=0.2.2",              # BM25 keyword search
 ```
 
 ---
@@ -1019,10 +1469,10 @@ Standard ADR template for consistency.
 - **Consequences:** Free, fast, may over-filter edge cases
 
 ### ADR-010: Resilience Patterns
-- **Decision:** Timeouts + tenacity (retries) for MVP; add circuit breakers later if needed
-- **Context:** External API dependencies (OpenRouter, OpenAI) can fail
-- **Alternatives:** Full circuit breaker setup (premature optimization), no resilience (fragile)
-- **Consequences:** Simple, predictable behavior; upgrade path exists when failure patterns emerge
+- **Decision:** Timeouts + tenacity (retries) + aiobreaker (circuit breaker) for LLM calls
+- **Context:** External API dependencies (OpenRouter, OpenAI) can fail; cascading failures are unacceptable
+- **Alternatives:** No circuit breaker (cascading failures), complex resilience (overkill)
+- **Consequences:** Fail-fast behavior prevents thread pool exhaustion; simple aiobreaker config
 
 ### ADR-012: Rate Limiting
 - **Decision:** slowapi for per-session rate limiting (10 requests/minute)
@@ -1036,10 +1486,35 @@ Standard ADR template for consistency.
 - **Alternatives:** Local setup docs only (inconsistent), Docker Compose (heavier)
 - **Consequences:** Works in VS Code + Codespaces, Python version locked
 
+### ADR-013: Semantic Caching
+- **Decision:** Cache RAG answers using semantic similarity matching
+- **Context:** Volunteers ask similar questions; caching reduces costs and latency
+- **Alternatives:** Exact-match cache (misses similar questions), no cache (expensive)
+- **Consequences:** ~40% cost reduction, 60x faster cached responses, need cache invalidation on doc updates
+
+### ADR-014: Hallucination Detection
+- **Decision:** Validate LLM answers are grounded in retrieved chunks before returning
+- **Context:** RAG systems can hallucinate; volunteers need accurate information
+- **Alternatives:** Trust LLM output (risky), manual review all answers (doesn't scale)
+- **Consequences:** Better accuracy, ~100ms added latency, some false positives possible
+
+### ADR-015: Prompt Injection Defense
+- **Decision:** Pattern-based detection for common prompt injection attacks
+- **Context:** Public-facing LLM systems are targets for injection attacks
+- **Alternatives:** No defense (vulnerable), complex NLP detection (overkill for MVP)
+- **Consequences:** Blocks common attacks, may need updates as attack patterns evolve
+
+### ADR-016: Hybrid Retrieval with Reranking
+- **Decision:** Combine semantic + keyword search, then rerank results
+- **Context:** Pure semantic search misses exact keyword matches; pure keyword misses meaning
+- **Alternatives:** Semantic only (current), keyword only (poor semantic understanding)
+- **Consequences:** Better retrieval accuracy, small cost for reranking (~$0.001/query)
+
 ---
 
 ## Decisions Made
 
+### Core Architecture
 - **App name**: GoodPuppy
 - **Test documents**: User will provide
 - **LLM approach**: OpenRouter with swappable provider abstraction (ADR-002)
@@ -1047,17 +1522,38 @@ Standard ADR template for consistency.
 - **API design**: REST/JSON, versioned (/api/v1), frontend is an API consumer
 - **Database**: SQLite (file-based, simple for MVP)
 - **Document storage**: Git repository (`documents/` folder, version controlled)
-- **Development**: Dev containers for consistent environment
-- **Observability**: Sentry (errors) + structlog (logging) - simplified for MVP (ADR-008)
-- **Safety**: OpenAI Moderation API (input + output filtering)
-- **Resilience**: Timeouts + tenacity (retries) - circuit breakers deferred (ADR-010)
+
+### RAG Quality (from LLM Architect Review)
+- **Chunking**: Structure-aware (respects headers, paragraphs) with 1500 char chunks, 800 char overlap
+- **Retrieval**: Hybrid search (semantic + BM25 keyword) with Cohere reranking (ADR-016)
+- **Caching**: Semantic cache for similar questions (~40% cost reduction) (ADR-013)
+- **Evaluation**: Golden Q&A dataset (30+ examples) with CI quality tests
+- **Hallucination detection**: Verify answer claims against source chunks (ADR-014)
+- **Prompt injection defense**: Pattern-based detection (ADR-015)
+- **Model fallback**: Sonnet → Haiku chain for resilience
+- **Answer confidence**: Self-assessment with low-confidence flagging
+
+### Safety & Resilience
+- **Content moderation**: OpenAI Moderation API (input + output filtering)
+- **Resilience**: Timeouts + tenacity (retries) + aiobreaker (circuit breaker) (ADR-010)
 - **Rate limiting**: slowapi (10 req/min per session) (ADR-012)
 - **Input validation**: Max 2000 chars, basic sanitization
+
+### Development & Operations
+- **Development**: Dev containers for consistent environment
+- **Observability**: Sentry (errors) + structlog (logging) - simplified for MVP (ADR-008)
 - **UI**: Mobile-first responsive with Tailwind CSS
 - **Document parsing**: Lightweight (python-docx + built-in) - no PDF parsing needed
+
+### Code Quality & Process
 - **Git workflow**: GitHub Flow (main + feature branches, squash merge)
 - **Code quality**: ruff + mypy --strict + 80% test coverage
 - **PR process**: 1 approval required, CI must pass
+
+### Deferred (Post-Validation)
+- **Operational excellence**: Backups, DR runbooks, advanced monitoring - see "Future: Production Hardening"
+- **LLMOps maturity**: A/B testing, model benchmarking, prompt versioning
+- **Philosophy**: Validate product-market fit first, then harden for operations
 
 ## Development Standards (for CLAUDE.md)
 
@@ -1273,6 +1769,79 @@ How was this tested?
 - PR process
 - Commit message format
 - Branch naming convention
+
+---
+
+## Future: Production Hardening (Post-Validation)
+
+> **Philosophy:** First validate the product is useful and wanted, then harden for operations.
+> These items are captured from AI engineering review but intentionally deferred until
+> the app has proven its value with real users.
+
+### When to Implement
+
+Trigger production hardening when:
+- App has been used by real volunteers for 2+ weeks
+- Positive feedback confirms product-market fit
+- Decision made to invest in long-term operation
+
+### Deferred Operational Items
+
+**Data Durability (Priority: High when scaling)**
+- [ ] Automated SQLite backup to cloud storage (daily)
+- [ ] Chroma vector DB backup after each reindex
+- [ ] Backup verification tests (can we actually restore?)
+- [ ] Define RPO/RTO targets (suggested: RPO 24h, RTO 1h)
+
+**Disaster Recovery**
+- [ ] Document runbooks for common failure scenarios
+- [ ] Secondary hosting provider config (backup to Railway if on Render, or vice versa)
+- [ ] Incident response procedures
+
+**Advanced Observability**
+- [ ] Distributed tracing (OpenTelemetry) for RAG pipeline debugging
+- [ ] Rich metrics dashboard (token trends, embedding costs, cache effectiveness)
+- [ ] User journey tracking (session analytics)
+- [ ] Alerting runbooks with specific thresholds and escalation paths
+- [ ] Anomaly detection for quality degradation
+
+**LLMOps Maturity**
+- [ ] A/B testing infrastructure for models and prompts
+- [ ] Model performance benchmarking on golden dataset
+- [ ] Prompt version control (prompts in config, not code)
+- [ ] Smart model routing (Haiku for simple questions, Sonnet for complex)
+- [ ] Cost attribution by user/session
+
+**Data Pipeline Hardening**
+- [ ] Pipeline failure handling (partial success, corrupted docs)
+- [ ] Data versioning (track embedding model version per chunk)
+- [ ] Incremental indexing (only reindex changed documents)
+- [ ] Large document streaming (handle 200+ page docs)
+
+**Security & Compliance**
+- [ ] API key rotation strategy (multiple keys, automatic rotation)
+- [ ] Data privacy procedures (GDPR/CCPA if applicable)
+- [ ] Complete admin audit logging (who deleted/changed what)
+- [ ] Data retention and anonymization policies
+
+**Deployment Maturity**
+- [ ] Blue-green or canary deployment strategy
+- [ ] Automatic rollback on high error rates
+- [ ] Resource limits and scaling thresholds
+- [ ] Database connection pool tuning
+
+### Why Defer These?
+
+1. **Validation first**: No point hardening an app nobody uses
+2. **YAGNI**: Some operational concerns won't materialize at small scale
+3. **Learning**: Real usage reveals actual pain points vs. hypothetical ones
+4. **Focus**: Early phases should focus on core RAG quality, not ops
+
+### Estimated Effort
+
+Once triggered, production hardening is approximately:
+- **High priority items** (backups, DR docs): 1-2 weeks
+- **Full operational maturity**: 4-6 weeks additional
 
 ---
 
