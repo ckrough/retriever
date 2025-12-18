@@ -2,11 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Context Loading:** Use the [Documentation Index](#documentation-index) below to find and load only relevant docs for your current task. Avoid loading all documentation at once.
+
 ## Project: GoodPuppy
 
 AI-powered Q&A system for shelter volunteers, using RAG to answer questions from policy/procedure documents.
 
-**Architecture:** Modular monolith with clean architecture principles (see `docs/implementation-plan.md`)
+**Architecture:** Modular monolith with clean architecture principles (see [Documentation Index](#documentation-index) for targeted docs)
 
 **Tech Stack:**
 - Python 3.12+, FastAPI, Pydantic 2.x
@@ -199,12 +201,81 @@ module_name/
 ### Configuration
 Use `pydantic-settings` for all configuration. Environment variables override defaults.
 
-## Documentation
+## Documentation Index
+
+Use this index to find relevant documentation without loading all files. Read only what's needed for the current task.
+
+### Core Documentation
+
+| Path | Purpose | Read When |
+|------|---------|-----------|
+| `docs/implementation-plan.md` | Overview and quick links to all docs | Starting work, need navigation |
+| `docs/architecture.md` | System design, tech stack, module patterns | Understanding codebase structure |
+| `docs/increments.md` | 13-increment implementation roadmap | Planning work, checking dependencies |
+| `docs/development-standards.md` | Code quality, Git workflow, PR process | Writing code, creating PRs |
+
+### Guides
+
+| Path | Purpose | Read When |
+|------|---------|-----------|
+| `docs/guides/deployment.md` | Railway/Render deployment instructions | Deploying, configuring environments |
+| `docs/guides/adding-documents.md` | Managing policy documents for RAG | Working with document ingestion |
+
+### Architectural Decision Records (ADRs)
+
+Read ADRs when you need to understand *why* a technical choice was made or when considering changes to that area.
+
+**Foundation & Stack**
+| ADR | Path | Topics |
+|-----|------|--------|
+| 001 | `docs/decisions/001-tech-stack.md` | Python, FastAPI, Pydantic, async |
+| 003 | `docs/decisions/003-system-architecture.md` | Modular monolith, clean architecture, module boundaries |
+| 011 | `docs/decisions/011-development-environment.md` | Dev containers, VS Code, Codespaces |
+
+**LLM & RAG Pipeline**
+| ADR | Path | Topics |
+|-----|------|--------|
+| 002 | `docs/decisions/002-llm-provider-strategy.md` | OpenRouter, Claude, provider abstraction, fallback |
+| 004 | `docs/decisions/004-vector-database.md` | Chroma, embeddings storage, persistence |
+| 005 | `docs/decisions/005-embedding-model.md` | text-embedding-3-small, OpenAI embeddings |
+| 013 | `docs/decisions/013-semantic-caching.md` | Query caching, similarity matching, cost reduction |
+| 016 | `docs/decisions/016-hybrid-retrieval.md` | BM25, semantic search, Cohere reranking |
+
+**Safety & Security**
+| ADR | Path | Topics |
+|-----|------|--------|
+| 007 | `docs/decisions/007-authentication-strategy.md` | JWT, session management, future SSO |
+| 009 | `docs/decisions/009-content-safety.md` | Moderation API, input/output filtering |
+| 012 | `docs/decisions/012-rate-limiting.md` | slowapi, per-session limits, abuse prevention |
+| 014 | `docs/decisions/014-hallucination-detection.md` | Claim verification, grounding, accuracy |
+| 015 | `docs/decisions/015-prompt-injection-defense.md` | Pattern detection, attack prevention |
+
+**Infrastructure & Operations**
+| ADR | Path | Topics |
+|-----|------|--------|
+| 006 | `docs/decisions/006-frontend-architecture.md` | Jinja2, HTMX, Tailwind, server-rendered |
+| 008 | `docs/decisions/008-observability-stack.md` | Sentry, structlog, error tracking, logging |
+| 010 | `docs/decisions/010-resilience-patterns.md` | Circuit breakers, retries, timeouts, aiobreaker |
+
+**Reference**
+| ADR | Path | Topics |
+|-----|------|--------|
+| 000 | `docs/decisions/000-template.md` | ADR template for new decisions |
+
+### Quick Reference
+
+| Topic | Primary Doc | Related ADRs |
+|-------|-------------|--------------|
+| RAG pipeline | `docs/architecture.md` | 002, 004, 005, 013, 014, 016 |
+| Security | `docs/development-standards.md` | 007, 009, 012, 015 |
+| Deployment | `docs/guides/deployment.md` | 008, 010 |
+| Code patterns | `docs/development-standards.md` | 001, 003 |
+| Adding features | `docs/increments.md` | (varies by feature) |
+
+### Other Resources
 
 | What | Where |
 |------|-------|
-| Architecture & Plan | `docs/implementation-plan.md` |
-| ADRs | `docs/decisions/NNN-*.md` |
 | API Docs | Auto-generated at `/docs` (OpenAPI) |
 | Setup | `README.md` |
 | Config | `.env.example` |
