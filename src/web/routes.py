@@ -133,7 +133,7 @@ async def ask(
         return templates.TemplateResponse(
             request=request,
             name="partials/message_pair.html",
-            context={"question": question, "answer": answer},
+            context={"question": question, "answer": answer, "chunks_used": []},
         )
 
     try:
@@ -141,19 +141,14 @@ async def ask(
         if rag_service is not None:
             response = await rag_service.ask(question)
 
-            # Include sources in the answer for transparency
-            chunks_used = response.chunks_used
-            if chunks_used:
-                sources = list({c.source for c in chunks_used})
-                sources_text = f"\n\n(Sources: {', '.join(sources)})"
-                answer = response.answer + sources_text
-            else:
-                answer = response.answer
-
             return templates.TemplateResponse(
                 request=request,
                 name="partials/message_pair.html",
-                context={"question": question, "answer": answer},
+                context={
+                    "question": question,
+                    "answer": response.answer,
+                    "chunks_used": response.chunks_used,
+                },
             )
 
         # Fall back to direct LLM (no RAG)
@@ -166,7 +161,7 @@ async def ask(
         return templates.TemplateResponse(
             request=request,
             name="partials/message_pair.html",
-            context={"question": question, "answer": answer},
+            context={"question": question, "answer": answer, "chunks_used": []},
         )
 
     except LLMProviderError as e:

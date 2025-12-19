@@ -30,6 +30,8 @@ def chunk_document(
     content: str,
     source: str,
     config: ChunkingConfig | None = None,
+    *,
+    title: str = "",
 ) -> list[Chunk]:
     """Chunk a document with structure awareness.
 
@@ -43,6 +45,7 @@ def chunk_document(
         content: The document content to chunk.
         source: Source filename for metadata.
         config: Chunking configuration (uses defaults if not provided).
+        title: Document title (first heading or filename).
 
     Returns:
         List of Chunk objects ready for embedding.
@@ -65,6 +68,7 @@ def chunk_document(
             section=header,
             start_position=position,
             config=config,
+            title=title,
         )
         chunks.extend(section_chunks)
         position += len(section_chunks)
@@ -72,6 +76,7 @@ def chunk_document(
     logger.debug(
         "document_chunked",
         source=source,
+        title=title,
         chunks_created=len(chunks),
         content_length=len(content),
     )
@@ -124,6 +129,8 @@ def _chunk_section(
     section: str,
     start_position: int,
     config: ChunkingConfig,
+    *,
+    title: str = "",
 ) -> list[Chunk]:
     """Chunk a single section.
 
@@ -133,6 +140,7 @@ def _chunk_section(
         section: Section header.
         start_position: Starting position for chunk numbering.
         config: Chunking configuration.
+        title: Document title.
 
     Returns:
         List of chunks for this section.
@@ -145,6 +153,7 @@ def _chunk_section(
                 source=source,
                 section=section,
                 position=start_position,
+                title=title,
             )
         ]
 
@@ -157,6 +166,7 @@ def _chunk_section(
             source=source,
             section=section,
             position=start_position + i,
+            title=title,
         )
         for i, chunk_text in enumerate(text_chunks)
     ]

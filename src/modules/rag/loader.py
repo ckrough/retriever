@@ -1,11 +1,15 @@
 """Document loaders for different file formats."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
 
 logger = structlog.get_logger()
+
+# Regex to match markdown H1 heading: # Title (at start of line)
+_MARKDOWN_H1_PATTERN = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 
 @dataclass
@@ -15,6 +19,8 @@ class LoadedDocument:
     content: str
     source: str  # Filename
     file_path: Path
+    title: str  # Document title (first # heading or filename)
+    document_type: str  # "markdown" or "text"
 
 
 class DocumentLoadError(Exception):
@@ -53,6 +59,29 @@ def load_document(file_path: Path) -> LoadedDocument:
         )
 
 
+def _extract_title(content: str, file_path: Path, is_markdown: bool) -> str:
+    """Extract document title from content or filename.
+
+    For markdown files, looks for the first H1 heading (# Title).
+    For text files, uses the filename without extension.
+
+    Args:
+        content: Document content.
+        file_path: Path to the file (used as fallback).
+        is_markdown: Whether the file is markdown format.
+
+    Returns:
+        Extracted or derived title.
+    """
+    if is_markdown:
+        match = _MARKDOWN_H1_PATTERN.search(content)
+        if match:
+            return match.group(1).strip()
+
+    # Fallback: use filename without extension
+    return file_path.stem
+
+
 def _load_text_file(file_path: Path) -> LoadedDocument:
     """Load a text or markdown file.
 
@@ -68,10 +97,20 @@ def _load_text_file(file_path: Path) -> LoadedDocument:
     try:
         content = file_path.read_text(encoding="utf-8")
 
+        # Determine document type based on extension
+        suffix = file_path.suffix.lower()
+        is_markdown = suffix == ".md"
+        document_type = "markdown" if is_markdown else "text"
+
+        # Extract title
+        title = _extract_title(content, file_path, is_markdown)
+
         logger.debug(
             "document_loaded",
             file_path=str(file_path),
             source=file_path.name,
+            title=title,
+            document_type=document_type,
             content_length=len(content),
         )
 
@@ -79,6 +118,8 @@ def _load_text_file(file_path: Path) -> LoadedDocument:
             content=content,
             source=file_path.name,
             file_path=file_path,
+            title=title,
+            document_type=document_type,
         )
 
     except UnicodeDecodeError as e:

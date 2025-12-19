@@ -14,6 +14,18 @@
         🐕
     </div>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3 max-w-[80%]">
-        <p class="text-gray-700">{{ answer }}</p>
+        <p class="text-gray-700 whitespace-pre-wrap">{{ answer }}</p>
+
+        {% if chunks_used %}
+        <!-- Citation cards -->
+        <div class="mt-4 pt-3 border-t border-gray-100">
+            <p class="text-xs text-gray-500 mb-2 font-medium">Sources ({{ chunks_used|length }})</p>
+            <div class="space-y-2">
+                {% for chunk in chunks_used %}
+                {% include "partials/citation_card.html" %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>

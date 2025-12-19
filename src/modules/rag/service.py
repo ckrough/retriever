@@ -95,6 +95,7 @@ class RAGService:
                 source=r.metadata.get("source", "unknown"),
                 section=r.metadata.get("section", ""),
                 score=r.score,
+                title=r.metadata.get("title", ""),
             )
             for r in results
         ]
@@ -147,6 +148,7 @@ class RAGService:
                 doc.content,
                 source=doc.source,
                 config=self._chunking_config,
+                title=doc.title,
             )
 
             if not chunks:

@@ -157,6 +157,51 @@ Test content here.
         assert result[0].metadata["source"] == "doc.md"
         assert result[0].metadata["section"] == "Test Section"
 
+    def test_chunk_preserves_title(self):
+        """Chunks should preserve document title in metadata."""
+        content = "This is some content."
+
+        result = chunk_document(
+            content,
+            source="policy.md",
+            title="Volunteer Handbook",
+        )
+
+        assert len(result) == 1
+        assert result[0].title == "Volunteer Handbook"
+        assert result[0].metadata["title"] == "Volunteer Handbook"
+
+    def test_chunk_title_in_all_chunks(self):
+        """All chunks from same document should have same title."""
+        content = """## Section 1
+
+Content 1
+
+## Section 2
+
+Content 2
+"""
+        result = chunk_document(
+            content,
+            source="handbook.md",
+            title="Safety Procedures",
+        )
+
+        assert len(result) >= 2
+        for chunk in result:
+            assert chunk.title == "Safety Procedures"
+            assert chunk.metadata["title"] == "Safety Procedures"
+
+    def test_chunk_empty_title_defaults(self):
+        """Empty title should default to empty string."""
+        content = "Some content."
+
+        result = chunk_document(content, source="test.md")
+
+        assert len(result) == 1
+        assert result[0].title == ""
+        assert result[0].metadata["title"] == ""
+
 
 class TestChunkingConfig:
     """Tests for ChunkingConfig."""
