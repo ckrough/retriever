@@ -9,6 +9,11 @@ import structlog
 from src.infrastructure.cache import SemanticCache
 from src.infrastructure.embeddings import EmbeddingProvider
 from src.infrastructure.llm import LLMProvider
+from src.infrastructure.safety import (
+    ConfidenceScorer,
+    SafetyService,
+    SafetyViolationType,
+)
 from src.infrastructure.vectordb import DocumentChunk, VectorStore
 from src.modules.rag.chunker import ChunkingConfig, chunk_document
 from src.modules.rag.loader import (
@@ -71,6 +76,8 @@ class RAGService:
         *,
         semantic_cache: SemanticCache | None = None,
         hybrid_retriever: HybridRetriever | None = None,
+        safety_service: SafetyService | None = None,
+        confidence_scorer: ConfidenceScorer | None = None,
         top_k: int = 5,
         chunk_size: int = 1500,
         chunk_overlap: int = 800,
@@ -87,6 +94,12 @@ class RAGService:
             hybrid_retriever: Optional hybrid retriever combining semantic
                 and keyword search. When provided, improves retrieval
                 accuracy by 10-15% using BM25 + RRF fusion.
+            safety_service: Optional safety service for content moderation
+                and hallucination detection. When provided, blocks unsafe
+                content and flags low-confidence answers.
+            confidence_scorer: Optional scorer for answer confidence.
+                When provided, calculates confidence based on retrieval
+                quality and grounding.
             top_k: Number of chunks to retrieve per query.
             chunk_size: Maximum chunk size in characters.
             chunk_overlap: Overlap between chunks in characters.
@@ -96,6 +109,8 @@ class RAGService:
         self._store = vector_store
         self._cache = semantic_cache
         self._retriever = hybrid_retriever
+        self._safety = safety_service
+        self._confidence_scorer = confidence_scorer or ConfidenceScorer()
         self._top_k = top_k
         self._chunking_config = ChunkingConfig(
             max_size=chunk_size,
@@ -113,6 +128,25 @@ class RAGService:
         Returns:
             RAGResponse with answer and retrieved chunks.
         """
+        # Check input safety first (if enabled)
+        if self._safety is not None:
+            safety_result = await self._safety.check_input(question)
+            if not safety_result.is_safe:
+                logger.warning(
+                    "rag_input_blocked",
+                    violation_type=safety_result.violation_type.value,
+                    question_length=len(question),
+                )
+                return RAGResponse(
+                    answer=safety_result.message,
+                    chunks_used=[],
+                    question=question,
+                    confidence_level="low",
+                    confidence_score=0.0,
+                    blocked=True,
+                    blocked_reason=safety_result.violation_type.value,
+                )
+
         # Check semantic cache first (if enabled)
         if self._cache is not None:
             cached = await self._cache.get(question)
@@ -187,9 +221,48 @@ class RAGService:
             user_message=question,
         )
 
-        # Log quality metrics for observability
-        sources_used = list({c.source for c in chunks_used})
+        # Calculate confidence score
         scores = [c.score for c in chunks_used]
+        chunk_texts = [c.content for c in chunks_used]
+        sources_used = list({c.source for c in chunks_used})
+
+        # Check for hallucination and get grounding ratio
+        grounding_ratio: float | None = None
+        if self._safety is not None and chunks_used:
+            hallucination_result = self._safety.check_hallucination(
+                answer=answer,
+                chunks=chunk_texts,
+                sources=[c.source for c in chunks_used],
+            )
+            if not hallucination_result.is_safe:
+                # Hallucination detected - return low confidence response
+                logger.warning(
+                    "rag_hallucination_detected",
+                    question_length=len(question),
+                )
+                return RAGResponse(
+                    answer=hallucination_result.message,
+                    chunks_used=chunks_used,
+                    question=question,
+                    confidence_level="low",
+                    confidence_score=0.0,
+                    blocked=True,
+                    blocked_reason=SafetyViolationType.HALLUCINATION.value,
+                )
+            # Get grounding ratio for confidence scoring
+            details = self._safety.get_hallucination_details(
+                answer=answer,
+                chunks=chunk_texts,
+            )
+            grounding_ratio = details.support_ratio
+
+        # Calculate confidence
+        confidence = self._confidence_scorer.score(
+            chunk_scores=scores,
+            grounding_ratio=grounding_ratio,
+        )
+
+        # Log quality metrics for observability
         logger.info(
             "rag_answer_generated",
             question_length=len(question),
@@ -199,10 +272,12 @@ class RAGService:
             top_score=max(scores) if scores else 0.0,
             min_score=min(scores) if scores else 0.0,
             avg_score=sum(scores) / len(scores) if scores else 0.0,
+            confidence_level=confidence.level.value,
+            confidence_score=confidence.score,
         )
 
-        # Store in cache (only answers with context)
-        if self._cache is not None and chunks_used:
+        # Store in cache (only high/medium confidence answers with context)
+        if self._cache is not None and chunks_used and not confidence.needs_review:
             await self._cache.set(
                 question=question,
                 answer=answer,
@@ -213,6 +288,8 @@ class RAGService:
             answer=answer,
             chunks_used=chunks_used,
             question=question,
+            confidence_level=confidence.level.value,
+            confidence_score=confidence.score,
         )
 
     async def index_document(self, file_path: Path) -> IndexingResult:

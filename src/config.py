@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     hybrid_keyword_weight: float = 0.5  # Weight for keyword search (0-1)
     hybrid_rrf_k: int = 60  # RRF constant (higher = more uniform ranking)
 
+    # Content Safety
+    safety_enabled: bool = True  # Enable content safety checks
+    openai_api_key: SecretStr | None = None  # For moderation API (free)
+    moderation_timeout_seconds: float = 10.0  # Moderation API timeout
+    hallucination_threshold: float = 0.8  # Min claim support ratio (0-1)
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -50,6 +50,10 @@ class RAGResponse:
     answer: str
     chunks_used: list["ChunkWithScore"]
     question: str
+    confidence_level: str = "medium"  # high, medium, low
+    confidence_score: float = 0.5
+    blocked: bool = False  # True if blocked by safety checks
+    blocked_reason: str | None = None
 
 
 @dataclass
