@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - GoodPuppy{% endblock %}
+
+{% block content %}
+<div class="min-h-full">
+    <!-- Header -->
+    <header class="bg-amber-500 shadow">
+        <div class="max-w-4xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold text-white">GoodPuppy Admin</h1>
+                <a href="/" class="text-amber-100 hover:text-white text-sm">
+                    &larr; Back to Chat
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Configuration Status -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Configuration Status</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="flex items-center">
+                    {% if llm_configured %}
+                    <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                    <span class="text-gray-700">LLM (OpenRouter)</span>
+                    {% else %}
+                    <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                    <span class="text-gray-700">LLM (OpenRouter) - Not configured</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center">
+                    {% if embeddings_configured %}
+                    <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                    <span class="text-gray-700">Embeddings (OpenRouter)</span>
+                    {% else %}
+                    <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                    <span class="text-gray-700">Embeddings (OpenRouter) - Not configured</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Index -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Document Index</h2>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="bg-gray-50 rounded p-4">
+                    <div class="text-3xl font-bold text-amber-600">{{ chunk_count }}</div>
+                    <div class="text-sm text-gray-600">Chunks Indexed</div>
+                </div>
+                <div class="bg-gray-50 rounded p-4">
+                    <div class="text-3xl font-bold text-amber-600">{{ documents|length }}</div>
+                    <div class="text-sm text-gray-600">Documents Available</div>
+                </div>
+            </div>
+
+            <button
+                hx-post="/admin/index"
+                hx-target="#index-result"
+                hx-swap="innerHTML"
+                hx-indicator="#index-loading"
+                class="bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2 rounded transition-colors disabled:opacity-50"
+                {% if not embeddings_configured %}disabled{% endif %}
+            >
+                Re-index All Documents
+            </button>
+
+            <span id="index-loading" class="htmx-indicator ml-2 text-gray-600">
+                Indexing...
+            </span>
+
+            <div id="index-result" class="mt-4"></div>
+        </div>
+
+        <!-- Available Documents -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Available Documents</h2>
+            <p class="text-sm text-gray-500 mb-4">
+                Location: <code class="bg-gray-100 px-1 rounded">{{ documents_path }}</code>
+            </p>
+
+            {% if documents %}
+            <ul class="space-y-2">
+                {% for doc in documents %}
+                <li class="flex items-center text-gray-700">
+                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    {{ doc }}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-gray-500 italic">
+                No documents found. Add .md or .txt files to the documents folder.
+            </p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+<style>
+    .htmx-indicator {
+        display: none;
+    }
+    .htmx-request .htmx-indicator {
+        display: inline;
+    }
+    .htmx-request button {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}

@@ -38,6 +38,22 @@ class Settings(BaseSettings):
     circuit_breaker_fail_max: int = 5
     circuit_breaker_timeout: float = 60.0
 
+    # Embeddings (via OpenRouter)
+    embedding_api_key: SecretStr | None = None
+    embedding_base_url: str = "https://openrouter.ai/api/v1"
+    embedding_model: str = "openai/text-embedding-3-small"
+    embedding_timeout_seconds: float = 30.0
+
+    # Chroma Vector Database
+    chroma_persist_path: str = "./data/chroma"
+    chroma_collection_name: str = "goodpuppy_documents"
+
+    # RAG Settings
+    rag_chunk_size: int = 1500  # Characters
+    rag_chunk_overlap: int = 800  # Characters
+    rag_top_k: int = 5  # Number of chunks to retrieve
+    documents_path: str = "./documents"
+
 
 @lru_cache
 def get_settings() -> Settings:

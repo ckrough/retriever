@@ -36,6 +36,9 @@ dependencies = [
 
     # Rate limiting
     "slowapi~=0.1.9",
+
+    # RAG Pipeline (Increment 3)
+    "chromadb~=0.5.0",  # Embedded vector database
 ]
 
 [project.optional-dependencies]
@@ -113,6 +116,8 @@ module = [
     "tenacity",
     "openai",
     "openai.*",
+    "chromadb",
+    "chromadb.*",
 ]
 ignore_missing_imports = true
 
