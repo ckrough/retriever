@@ -16,9 +16,14 @@ from src.infrastructure.embeddings import (
 )
 from src.infrastructure.llm import OpenRouterProvider
 from src.infrastructure.vectordb import ChromaVectorStore
-from src.modules.rag import RAGService, list_documents, load_document
+from src.modules.rag import HybridRetriever, RAGService, list_documents, load_document
 from src.modules.rag.loader import DocumentLoadError
-from src.web.routes import get_llm_provider, get_semantic_cache, get_vector_store
+from src.web.routes import (
+    get_hybrid_retriever,
+    get_llm_provider,
+    get_semantic_cache,
+    get_vector_store,
+)
 from src.web.templates import templates
 
 logger = structlog.get_logger()
@@ -41,6 +46,7 @@ def get_admin_rag_service(
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
+    hybrid_retriever: Annotated[HybridRetriever | None, Depends(get_hybrid_retriever)],
 ) -> RAGService | None:
     """Get the RAG service for admin operations.
 
@@ -66,6 +72,7 @@ def get_admin_rag_service(
         embedding_provider=embedding_provider,
         vector_store=vector_store,
         semantic_cache=semantic_cache,
+        hybrid_retriever=hybrid_retriever,
         top_k=settings.rag_top_k,
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,
@@ -103,6 +110,7 @@ async def admin_index(
     settings: Annotated[Settings, Depends(get_settings)],
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
+    hybrid_retriever: Annotated[HybridRetriever | None, Depends(get_hybrid_retriever)],
 ) -> Response:
     """Render the admin dashboard."""
     documents_path = Path(settings.documents_path)
@@ -119,6 +127,12 @@ async def admin_index(
     cache_enabled = settings.cache_enabled and semantic_cache is not None
     cache_count = semantic_cache.count() if semantic_cache else 0
 
+    # Hybrid retrieval stats
+    hybrid_enabled = settings.hybrid_retrieval_enabled and hybrid_retriever is not None
+    keyword_index_count = (
+        hybrid_retriever.get_keyword_index_count() if hybrid_retriever else 0
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="admin/index.html",
@@ -130,6 +144,8 @@ async def admin_index(
             "embeddings_configured": embeddings_configured,
             "cache_enabled": cache_enabled,
             "cache_count": cache_count,
+            "hybrid_enabled": hybrid_enabled,
+            "keyword_index_count": keyword_index_count,
         },
     )
 

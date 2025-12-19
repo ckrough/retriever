@@ -14,7 +14,7 @@ from src.infrastructure.embeddings import OpenAIEmbeddingProvider
 from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.infrastructure.llm.openrouter import DEFAULT_SYSTEM_PROMPT
 from src.infrastructure.vectordb import ChromaVectorStore
-from src.modules.rag import RAGService
+from src.modules.rag import HybridRetriever, RAGService
 from src.web.templates import templates
 
 logger = structlog.get_logger()
@@ -27,6 +27,7 @@ MAX_QUESTION_LENGTH = 2000
 # Singletons (per process)
 _vector_store_cache: dict[str, ChromaVectorStore] = {}
 _semantic_cache_instance: dict[str, ChromaSemanticCache] = {}
+_hybrid_retriever_instance: dict[str, HybridRetriever] = {}
 
 
 def get_llm_provider(
@@ -103,11 +104,49 @@ def get_semantic_cache(
     return _semantic_cache_instance[persist_path]
 
 
+def get_hybrid_retriever(
+    settings: Annotated[Settings, Depends(get_settings)],
+    vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
+) -> HybridRetriever | None:
+    """Get or create the hybrid retriever singleton.
+
+    Returns None if hybrid retrieval is disabled or embeddings aren't configured.
+    """
+    if not settings.hybrid_retrieval_enabled:
+        return None
+
+    if settings.embedding_api_key is None:
+        return None
+
+    persist_path = settings.chroma_persist_path
+
+    if persist_path not in _hybrid_retriever_instance:
+        embedding_provider = OpenAIEmbeddingProvider(
+            api_key=settings.embedding_api_key.get_secret_value(),
+            model=settings.embedding_model,
+            base_url=settings.embedding_base_url,
+            timeout_seconds=settings.embedding_timeout_seconds,
+            circuit_breaker_fail_max=settings.circuit_breaker_fail_max,
+            circuit_breaker_timeout=settings.circuit_breaker_timeout,
+        )
+
+        _hybrid_retriever_instance[persist_path] = HybridRetriever(
+            embedding_provider=embedding_provider,
+            vector_store=vector_store,
+            semantic_weight=settings.hybrid_semantic_weight,
+            keyword_weight=settings.hybrid_keyword_weight,
+            rrf_k=settings.hybrid_rrf_k,
+        )
+
+    return _hybrid_retriever_instance[persist_path]
+
+
 def get_rag_service(
     settings: Annotated[Settings, Depends(get_settings)],
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
+    hybrid_retriever: Annotated[HybridRetriever | None, Depends(get_hybrid_retriever)],
 ) -> RAGService | None:
     """Get the RAG service if fully configured.
 
@@ -133,6 +172,7 @@ def get_rag_service(
         embedding_provider=embedding_provider,
         vector_store=vector_store,
         semantic_cache=semantic_cache,
+        hybrid_retriever=hybrid_retriever,
         top_k=settings.rag_top_k,
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,

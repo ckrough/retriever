@@ -13,6 +13,7 @@ from src.modules.rag.loader import (
     list_documents,
     load_document,
 )
+from src.modules.rag.retriever import HybridRetriever, IndexedDocument
 from src.modules.rag.schemas import (
     Chunk,
     ChunkWithScore,
@@ -26,6 +27,8 @@ __all__ = [
     "ChunkWithScore",
     "ChunkingConfig",
     "DocumentLoadError",
+    "HybridRetriever",
+    "IndexedDocument",
     "IndexingResult",
     "LoadedDocument",
     "RAGResponse",

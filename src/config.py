@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     cache_similarity_threshold: float = 0.95  # Minimum similarity for cache hit (0-1)
     cache_ttl_hours: int = 24  # Time-to-live for cached entries
 
+    # Hybrid Retrieval
+    hybrid_retrieval_enabled: bool = True  # Enable hybrid (semantic + keyword) search
+    hybrid_semantic_weight: float = 0.5  # Weight for semantic search (0-1)
+    hybrid_keyword_weight: float = 0.5  # Weight for keyword search (0-1)
+    hybrid_rrf_k: int = 60  # RRF constant (higher = more uniform ranking)
+
 
 @lru_cache
 def get_settings() -> Settings:
