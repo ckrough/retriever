@@ -88,16 +88,18 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - See error message if API fails
 
 **Build:**
-- [ ] OpenRouter provider (Protocol-based)
-- [ ] Environment config for API keys
-- [ ] Loading spinner in UI
-- [ ] Error handling + display
-- [ ] Request timeouts (30s for LLM calls)
-- [ ] Circuit breaker for LLM calls (fail fast after 5 failures)
-- [ ] Rate limiting (10 requests/minute per session)
+- [x] OpenRouter provider (Protocol-based)
+- [x] Environment config for API keys
+- [x] Loading spinner in UI *(HTMX built-in from Increment 1)*
+- [x] Error handling + display
+- [x] Request timeouts (30s for LLM calls)
+- [x] Circuit breaker for LLM calls (fail fast after 5 failures)
+- [x] Rate limiting (10 requests/minute per session)
 - [x] Input validation (max 2000 chars, basic sanitization) *(done in Increment 1)*
 
 **Validates:** LLM integration, provider abstraction, error handling, resilience
+
+**Status:** ✅ Complete
 
 ---
 
