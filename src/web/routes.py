@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, Response
 
 from src.api.rate_limit import get_rate_limit_string, limiter
 from src.config import Settings, get_settings
+from src.infrastructure.cache import ChromaSemanticCache
 from src.infrastructure.embeddings import OpenAIEmbeddingProvider
 from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.infrastructure.llm.openrouter import DEFAULT_SYSTEM_PROMPT
@@ -23,8 +24,9 @@ router = APIRouter()
 # Input constraints
 MAX_QUESTION_LENGTH = 2000
 
-# Cache for vector store (singleton per process)
+# Singletons (per process)
 _vector_store_cache: dict[str, ChromaVectorStore] = {}
+_semantic_cache_instance: dict[str, ChromaSemanticCache] = {}
 
 
 def get_llm_provider(
@@ -66,10 +68,46 @@ def get_vector_store(
     return _vector_store_cache[persist_path]
 
 
+def get_semantic_cache(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ChromaSemanticCache | None:
+    """Get or create the semantic cache singleton.
+
+    Returns None if caching is disabled or embeddings aren't configured.
+    """
+    if not settings.cache_enabled:
+        return None
+
+    if settings.embedding_api_key is None:
+        return None
+
+    persist_path = settings.chroma_persist_path
+
+    if persist_path not in _semantic_cache_instance:
+        embedding_provider = OpenAIEmbeddingProvider(
+            api_key=settings.embedding_api_key.get_secret_value(),
+            model=settings.embedding_model,
+            base_url=settings.embedding_base_url,
+            timeout_seconds=settings.embedding_timeout_seconds,
+            circuit_breaker_fail_max=settings.circuit_breaker_fail_max,
+            circuit_breaker_timeout=settings.circuit_breaker_timeout,
+        )
+
+        _semantic_cache_instance[persist_path] = ChromaSemanticCache(
+            embedding_provider=embedding_provider,
+            persist_path=Path(persist_path),
+            similarity_threshold=settings.cache_similarity_threshold,
+            ttl_hours=settings.cache_ttl_hours,
+        )
+
+    return _semantic_cache_instance[persist_path]
+
+
 def get_rag_service(
     settings: Annotated[Settings, Depends(get_settings)],
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
+    semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
 ) -> RAGService | None:
     """Get the RAG service if fully configured.
 
@@ -94,6 +132,7 @@ def get_rag_service(
         llm_provider=llm_provider,
         embedding_provider=embedding_provider,
         vector_store=vector_store,
+        semantic_cache=semantic_cache,
         top_k=settings.rag_top_k,
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,

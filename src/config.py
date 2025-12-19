@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     rag_top_k: int = 5  # Number of chunks to retrieve
     documents_path: str = "./documents"
 
+    # Semantic Cache
+    cache_enabled: bool = True  # Enable semantic caching for faster responses
+    cache_similarity_threshold: float = 0.95  # Minimum similarity for cache hit (0-1)
+    cache_ttl_hours: int = 24  # Time-to-live for cached entries
+
 
 @lru_cache
 def get_settings() -> Settings:

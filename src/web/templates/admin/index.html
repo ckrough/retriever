@@ -46,7 +46,7 @@
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4">Document Index</h2>
 
-            <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-3 gap-4 mb-4">
                 <div class="bg-gray-50 rounded p-4">
                     <div class="text-3xl font-bold text-amber-600">{{ chunk_count }}</div>
                     <div class="text-sm text-gray-600">Chunks Indexed</div>
@@ -55,24 +55,53 @@
                     <div class="text-3xl font-bold text-amber-600">{{ documents|length }}</div>
                     <div class="text-sm text-gray-600">Documents Available</div>
                 </div>
+                <div class="bg-gray-50 rounded p-4">
+                    <div class="text-3xl font-bold text-amber-600">{{ cache_count }}</div>
+                    <div class="text-sm text-gray-600">
+                        Cached Answers
+                        {% if cache_enabled %}
+                        <span class="inline-flex w-2 h-2 bg-green-500 rounded-full ml-1" title="Cache enabled"></span>
+                        {% else %}
+                        <span class="inline-flex w-2 h-2 bg-gray-400 rounded-full ml-1" title="Cache disabled"></span>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
 
-            <button
-                hx-post="/admin/index"
-                hx-target="#index-result"
-                hx-swap="innerHTML"
-                hx-indicator="#index-loading"
-                class="bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2 rounded transition-colors disabled:opacity-50"
-                {% if not embeddings_configured %}disabled{% endif %}
-            >
-                Re-index All Documents
-            </button>
+            <div class="flex gap-2">
+                <button
+                    hx-post="/admin/index"
+                    hx-target="#index-result"
+                    hx-swap="innerHTML"
+                    hx-indicator="#index-loading"
+                    class="bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2 rounded transition-colors disabled:opacity-50"
+                    {% if not embeddings_configured %}disabled{% endif %}
+                >
+                    Re-index All Documents
+                </button>
 
-            <span id="index-loading" class="htmx-indicator ml-2 text-gray-600">
-                Indexing...
-            </span>
+                {% if cache_enabled %}
+                <button
+                    hx-post="/admin/clear-cache"
+                    hx-target="#cache-result"
+                    hx-swap="innerHTML"
+                    hx-indicator="#cache-loading"
+                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium px-4 py-2 rounded transition-colors"
+                >
+                    Clear Cache
+                </button>
+                <span id="cache-loading" class="htmx-indicator ml-2 text-gray-600">
+                    Clearing...
+                </span>
+                {% endif %}
+
+                <span id="index-loading" class="htmx-indicator ml-2 text-gray-600">
+                    Indexing...
+                </span>
+            </div>
 
             <div id="index-result" class="mt-4"></div>
+            <div id="cache-result" class="mt-4"></div>
         </div>
 
         <!-- Available Documents -->

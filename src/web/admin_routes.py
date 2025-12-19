@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 
 from src.config import Settings, get_settings
+from src.infrastructure.cache import ChromaSemanticCache
 from src.infrastructure.embeddings import (
     EmbeddingProviderError,
     OpenAIEmbeddingProvider,
@@ -17,7 +18,7 @@ from src.infrastructure.llm import OpenRouterProvider
 from src.infrastructure.vectordb import ChromaVectorStore
 from src.modules.rag import RAGService, list_documents, load_document
 from src.modules.rag.loader import DocumentLoadError
-from src.web.routes import get_llm_provider, get_vector_store
+from src.web.routes import get_llm_provider, get_semantic_cache, get_vector_store
 from src.web.templates import templates
 
 logger = structlog.get_logger()
@@ -39,6 +40,7 @@ def get_admin_rag_service(
     settings: Annotated[Settings, Depends(get_settings)],
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
+    semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
 ) -> RAGService | None:
     """Get the RAG service for admin operations.
 
@@ -63,6 +65,7 @@ def get_admin_rag_service(
         llm_provider=llm_provider,
         embedding_provider=embedding_provider,
         vector_store=vector_store,
+        semantic_cache=semantic_cache,
         top_k=settings.rag_top_k,
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,
@@ -99,6 +102,7 @@ async def admin_index(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
+    semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
 ) -> Response:
     """Render the admin dashboard."""
     documents_path = Path(settings.documents_path)
@@ -111,6 +115,10 @@ async def admin_index(
     llm_configured = settings.openrouter_api_key is not None
     embeddings_configured = settings.embedding_api_key is not None
 
+    # Cache stats
+    cache_enabled = settings.cache_enabled and semantic_cache is not None
+    cache_count = semantic_cache.count() if semantic_cache else 0
+
     return templates.TemplateResponse(
         request=request,
         name="admin/index.html",
@@ -120,6 +128,8 @@ async def admin_index(
             "documents_path": str(documents_path),
             "llm_configured": llm_configured,
             "embeddings_configured": embeddings_configured,
+            "cache_enabled": cache_enabled,
+            "cache_count": cache_count,
         },
     )
 
@@ -190,4 +200,45 @@ async def index_documents(
             request=request,
             name="admin/partials/index_error.html",
             context={"error_message": f"Indexing failed: {e}"},
+        )
+
+
+@router.post("/clear-cache", response_class=HTMLResponse)
+async def clear_cache(
+    request: Request,
+    semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
+) -> Response:
+    """Clear the semantic cache without affecting indexed documents."""
+    if semantic_cache is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/cache_result.html",
+            context={
+                "success": False,
+                "message": "Cache is not enabled.",
+            },
+        )
+
+    try:
+        await semantic_cache.clear()
+        logger.info("admin_cache_cleared")
+
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/cache_result.html",
+            context={
+                "success": True,
+                "message": "Cache cleared successfully.",
+            },
+        )
+
+    except Exception as e:
+        logger.error("admin_cache_clear_error", error=str(e))
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/cache_result.html",
+            context={
+                "success": False,
+                "message": f"Failed to clear cache: {e}",
+            },
         )
