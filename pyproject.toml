@@ -26,6 +26,16 @@ dependencies = [
 
     # Logging
     "structlog~=24.4.0",
+
+    # LLM Integration
+    "openai~=1.59.0",  # OpenRouter uses OpenAI-compatible API
+
+    # Resilience
+    "tenacity~=9.0.0",  # Retries with exponential backoff
+    "aiobreaker~=1.2.0",  # Circuit breaker for async
+
+    # Rate limiting
+    "slowapi~=0.1.9",
 ]
 
 [project.optional-dependencies]
@@ -93,6 +103,18 @@ warn_unused_configs = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "slowapi",
+    "slowapi.errors",
+    "slowapi.util",
+    "aiobreaker",
+    "tenacity",
+    "openai",
+    "openai.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

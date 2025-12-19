@@ -1,0 +1,19 @@
+<!-- User question (still show it) -->
+<div class="flex gap-3 justify-end">
+    <div class="bg-amber-500 text-white rounded-lg shadow-sm p-3 max-w-[80%]">
+        <p>{{ question }}</p>
+    </div>
+    <div class="flex-shrink-0 w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm">
+        👤
+    </div>
+</div>
+
+<!-- Error message -->
+<div class="flex gap-3">
+    <div class="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm">
+        ⚠️
+    </div>
+    <div class="bg-red-50 border border-red-200 rounded-lg shadow-sm p-3 max-w-[80%]">
+        <p class="text-red-700">{{ error_message }}</p>
+    </div>
+</div>

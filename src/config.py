@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,20 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
+
+    # LLM Provider (OpenRouter)
+    openrouter_api_key: SecretStr | None = None
+    llm_model: str = "anthropic/claude-sonnet-4"
+    llm_fallback_model: str = "anthropic/claude-haiku"
+    llm_timeout_seconds: float = 30.0
+
+    # Rate limiting
+    rate_limit_requests: int = 10
+    rate_limit_window: str = "minute"
+
+    # Circuit breaker
+    circuit_breaker_fail_max: int = 5
+    circuit_breaker_timeout: float = 60.0
 
 
 @lru_cache
