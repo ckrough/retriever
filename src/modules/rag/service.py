@@ -187,11 +187,18 @@ class RAGService:
             user_message=question,
         )
 
+        # Log quality metrics for observability
+        sources_used = list({c.source for c in chunks_used})
+        scores = [c.score for c in chunks_used]
         logger.info(
             "rag_answer_generated",
             question_length=len(question),
             answer_length=len(answer),
             chunks_used=len(chunks_used),
+            sources_used=sources_used,
+            top_score=max(scores) if scores else 0.0,
+            min_score=min(scores) if scores else 0.0,
+            avg_score=sum(scores) / len(scores) if scores else 0.0,
         )
 
         # Store in cache (only answers with context)

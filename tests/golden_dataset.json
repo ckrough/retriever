@@ -1,0 +1,161 @@
+{
+  "version": "1.0.0",
+  "description": "Golden Q&A dataset for RAG quality evaluation",
+  "created": "2024-12-19",
+  "examples": [
+    {
+      "id": "walk-001",
+      "question": "What age do I need to be to walk dogs at FOHA?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["18", "years old"],
+      "category": "requirements"
+    },
+    {
+      "id": "walk-002",
+      "question": "Can I use my phone while walking a dog?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["cellphone", "headphones", "no", "not"],
+      "category": "rules"
+    },
+    {
+      "id": "walk-003",
+      "question": "What do the colored stickers on the kennel doors mean?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["level", "training", "green", "Level 1"],
+      "category": "procedures"
+    },
+    {
+      "id": "walk-004",
+      "question": "What equipment do I need to walk dogs?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["slip lead", "treat", "poop bags"],
+      "category": "equipment"
+    },
+    {
+      "id": "walk-005",
+      "question": "What should I wear to walk dogs at FOHA?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["pants", "shoes", "boots", "closed-toed", "dirty"],
+      "category": "attire"
+    },
+    {
+      "id": "event-001",
+      "question": "What should I do if someone wants to adopt the dog I'm handling at an event?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["Event Lead", "call", "speak"],
+      "category": "events"
+    },
+    {
+      "id": "event-002",
+      "question": "Can other people hold my dog's leash at adoption events?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["no", "not", "FOHA volunteers", "Event Lead"],
+      "category": "events"
+    },
+    {
+      "id": "event-003",
+      "question": "What should dogs wear at adoption events?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["slip lead", "harness", "Adopt Me vest"],
+      "category": "events"
+    },
+    {
+      "id": "event-004",
+      "question": "What do I do if the dog gets stressed at an event?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["FAS", "fear", "anxiety", "stress", "quieter", "away"],
+      "category": "events"
+    },
+    {
+      "id": "event-005",
+      "question": "Where do I check in when I arrive at an adoption event?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["FOHA tent", "table", "Adopt Me vest"],
+      "category": "events"
+    },
+    {
+      "id": "event-006",
+      "question": "Can I drive with the windows down when transporting a dog?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["no", "not", "jump", "window"],
+      "category": "transport"
+    },
+    {
+      "id": "event-007",
+      "question": "What should I do when I return a dog after an event?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["kennel", "collar", "binder", "clothespin", "dinner"],
+      "category": "events"
+    },
+    {
+      "id": "walk-006",
+      "question": "Who do I contact for advanced dog training classes?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["Megan McNickle", "meganmcnickle@foha.org", "training"],
+      "category": "training"
+    },
+    {
+      "id": "walk-007",
+      "question": "Can children come to the shelter with me?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["13", "children", "under"],
+      "category": "requirements"
+    },
+    {
+      "id": "event-008",
+      "question": "How do I share feedback about a dog after an event?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["app", "spreadsheet", "FOHA webpage", "mobile"],
+      "category": "feedback"
+    },
+    {
+      "id": "walk-008",
+      "question": "What are the roles of a dog walker at FOHA?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["enrich", "observe", "report", "advocate"],
+      "category": "responsibilities"
+    },
+    {
+      "id": "event-009",
+      "question": "How do I prepare for a dog adoption event?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["email", "dog list", "FOHA webpage", "read", "gear"],
+      "category": "events"
+    },
+    {
+      "id": "walk-009",
+      "question": "What treats should I use for training dogs?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["kibble", "Charlie Bear", "Buddy Biscuits", "chicken", "hotdog"],
+      "category": "training"
+    },
+    {
+      "id": "event-010",
+      "question": "What should I do if an incident happens with my dog at an event?",
+      "expected_sources": ["FOHA_Dog_Adoption_Event_Instructions.md"],
+      "expected_keywords": ["calm", "Event Lead", "immediately", "details"],
+      "category": "safety"
+    },
+    {
+      "id": "walk-010",
+      "question": "Where can I find the behavior log for dogs?",
+      "expected_sources": ["FOHA_Dog_Walker_Guide.md"],
+      "expected_keywords": ["office", "behavior log"],
+      "category": "reporting"
+    }
+  ],
+  "categories": {
+    "requirements": "Volunteer requirements and eligibility",
+    "rules": "Shelter rules and policies",
+    "procedures": "Standard operating procedures",
+    "equipment": "Required tools and equipment",
+    "attire": "Dress code and clothing recommendations",
+    "events": "Adoption event procedures",
+    "transport": "Dog transportation guidelines",
+    "training": "Training resources and contacts",
+    "feedback": "How to provide feedback",
+    "responsibilities": "Volunteer roles and duties",
+    "safety": "Safety procedures and emergency response",
+    "reporting": "Documentation and reporting"
+  }
+}
