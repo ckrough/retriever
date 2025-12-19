@@ -1,5 +1,6 @@
 """Admin routes for document management."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -14,11 +15,22 @@ from src.infrastructure.embeddings import (
 )
 from src.infrastructure.llm import OpenRouterProvider
 from src.infrastructure.vectordb import ChromaVectorStore
-from src.modules.rag import RAGService, list_documents
+from src.modules.rag import RAGService, list_documents, load_document
+from src.modules.rag.loader import DocumentLoadError
 from src.web.routes import get_llm_provider, get_vector_store
 from src.web.templates import templates
 
 logger = structlog.get_logger()
+
+
+@dataclass
+class DocumentInfo:
+    """Document metadata for admin display."""
+
+    filename: str
+    title: str
+    document_type: str  # "markdown" or "text"
+
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -57,6 +69,31 @@ def get_admin_rag_service(
     )
 
 
+def _load_document_info(doc_path: Path) -> DocumentInfo:
+    """Load document metadata for admin display.
+
+    Args:
+        doc_path: Path to the document.
+
+    Returns:
+        DocumentInfo with extracted metadata.
+    """
+    try:
+        doc = load_document(doc_path)
+        return DocumentInfo(
+            filename=doc.source,
+            title=doc.title,
+            document_type=doc.document_type,
+        )
+    except DocumentLoadError:
+        # Fallback if document can't be loaded
+        return DocumentInfo(
+            filename=doc_path.name,
+            title=doc_path.stem,
+            document_type="unknown",
+        )
+
+
 @router.get("/", response_class=HTMLResponse)
 async def admin_index(
     request: Request,
@@ -65,7 +102,10 @@ async def admin_index(
 ) -> Response:
     """Render the admin dashboard."""
     documents_path = Path(settings.documents_path)
-    documents = list_documents(documents_path)
+    document_paths = list_documents(documents_path)
+
+    # Load document metadata for each document
+    documents = [_load_document_info(doc_path) for doc_path in document_paths]
 
     # Check configuration status
     llm_configured = settings.openrouter_api_key is not None
@@ -75,7 +115,7 @@ async def admin_index(
         request=request,
         name="admin/index.html",
         context={
-            "documents": [d.name for d in documents],
+            "documents": documents,
             "chunk_count": vector_store.count(),
             "documents_path": str(documents_path),
             "llm_configured": llm_configured,

@@ -19,6 +19,7 @@ class Chunk:
     source: str  # Source document filename
     section: str  # Section header (if available)
     position: int  # Position in the document (for ordering)
+    title: str = ""  # Document title (first # heading or filename)
     metadata: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -28,6 +29,7 @@ class Chunk:
                 "source": self.source,
                 "section": self.section,
                 "position": str(self.position),
+                "title": self.title,
             }
 
 
@@ -58,6 +60,7 @@ class ChunkWithScore:
     source: str
     section: str
     score: float
+    title: str = ""
 
     @classmethod
     def from_retrieval_result(cls, result: "RetrievalResult") -> "ChunkWithScore":
@@ -68,4 +71,5 @@ class ChunkWithScore:
             source=result.metadata.get("source", "unknown"),
             section=result.metadata.get("section", ""),
             score=result.score,
+            title=result.metadata.get("title", ""),
         )

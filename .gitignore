@@ -56,3 +56,6 @@ Thumbs.db
 
 # Vector database persistence
 data/
+
+# Knowledge Documents
+documents/*

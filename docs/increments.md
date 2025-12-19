@@ -122,15 +122,17 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - See which chunks were used (debug view)
 
 **Build:**
-- [ ] Document loader (markdown/text first)
-- [ ] Text chunker (structure-aware)
-- [ ] OpenAI embeddings
-- [ ] Chroma vector store
-- [ ] RAG pipeline (retrieve + generate)
-- [ ] Admin page to trigger indexing
-- [ ] Show retrieved chunks in response
+- [x] Document loader (markdown/text first)
+- [x] Text chunker (structure-aware)
+- [x] OpenAI embeddings
+- [x] Chroma vector store
+- [x] RAG pipeline (retrieve + generate)
+- [x] Admin page to trigger indexing
+- [x] Show retrieved chunks in response
 
 **Validates:** Full RAG pipeline, chunking strategy, retrieval quality
+
+**Status:** ✅ Complete (PR #3)
 
 ---
 
@@ -142,17 +144,23 @@ Agile vertical slices - each increment delivers a working, visible feature.
 
 **What you'll see:**
 - Index multiple documents
-- Ask question → Answer with "Source: Volunteer Handbook, page 3"
-- Admin view of all indexed documents
+- Ask question → Answer with expandable source citations
+- Admin view of all indexed documents with metadata
 
 **Build:**
-- [ ] Word document loader (.docx)
-- [ ] Document metadata (title, source)
-- [ ] Source citation in answers
-- [ ] Document list in admin
-- [ ] Re-index capability
+- [x] ~~Word document loader (.docx)~~ - Not needed (using .md/.txt only)
+- [x] Document metadata (title, section, filename)
+- [x] Source citation in answers (expandable citation cards)
+- [x] Document list in admin (with title, type badges)
+- [x] Re-index capability (already existed from Increment 3)
+
+**Enhancements (discovered during implementation):**
+- [ ] Markdown rendering in chat answers (currently shows raw markup)
+- [ ] Indexing progress indicator in admin panel (no feedback during indexing)
 
 **Validates:** Multi-document handling, citation accuracy
+
+**Status:** ✅ Core complete (PR pending)
 
 ---
 

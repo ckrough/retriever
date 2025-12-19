@@ -35,6 +35,54 @@ class TestLoadDocument:
         assert result.content == "Plain text content."
         assert result.source == "test.txt"
 
+    def test_load_markdown_extracts_title_from_h1(self, tmp_path: Path):
+        """Should extract title from first H1 heading in markdown."""
+        doc_path = tmp_path / "policy.md"
+        doc_path.write_text("# Volunteer Handbook\n\nWelcome to the shelter!")
+
+        result = load_document(doc_path)
+
+        assert result.title == "Volunteer Handbook"
+        assert result.document_type == "markdown"
+
+    def test_load_markdown_title_fallback_to_filename(self, tmp_path: Path):
+        """Should fall back to filename when no H1 heading."""
+        doc_path = tmp_path / "notes.md"
+        doc_path.write_text("## Section One\n\nNo H1 here.")
+
+        result = load_document(doc_path)
+
+        assert result.title == "notes"  # filename without extension
+        assert result.document_type == "markdown"
+
+    def test_load_text_file_uses_filename_as_title(self, tmp_path: Path):
+        """Should use filename as title for text files."""
+        doc_path = tmp_path / "procedures.txt"
+        doc_path.write_text("Step 1: Check in at front desk.")
+
+        result = load_document(doc_path)
+
+        assert result.title == "procedures"  # filename without extension
+        assert result.document_type == "text"
+
+    def test_load_markdown_extracts_first_h1_only(self, tmp_path: Path):
+        """Should extract only the first H1 heading."""
+        doc_path = tmp_path / "multi.md"
+        doc_path.write_text("# First Title\n\n# Second Title\n\nContent.")
+
+        result = load_document(doc_path)
+
+        assert result.title == "First Title"
+
+    def test_load_markdown_title_strips_whitespace(self, tmp_path: Path):
+        """Should strip whitespace from extracted title."""
+        doc_path = tmp_path / "spaced.md"
+        doc_path.write_text("#   Spaced Title   \n\nContent.")
+
+        result = load_document(doc_path)
+
+        assert result.title == "Spaced Title"
+
     def test_load_nonexistent_file_raises(self, tmp_path: Path):
         """Should raise error for nonexistent file."""
         doc_path = tmp_path / "missing.md"
