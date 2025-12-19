@@ -1,0 +1,28 @@
+<div class="bg-green-50 border border-green-200 rounded p-4">
+    <h3 class="font-semibold text-green-800 mb-2">Indexing Complete</h3>
+
+    <div class="text-sm text-green-700 mb-3">
+        <p>{{ success_count }} document(s) indexed successfully</p>
+        {% if failed_count > 0 %}
+        <p class="text-red-600">{{ failed_count }} document(s) failed</p>
+        {% endif %}
+        <p class="font-medium">Total chunks: {{ total_chunks }}</p>
+    </div>
+
+    <details class="text-sm">
+        <summary class="cursor-pointer text-green-600 hover:text-green-800">
+            View details
+        </summary>
+        <ul class="mt-2 space-y-1 pl-4">
+            {% for result in results %}
+            <li class="{% if result.success %}text-green-700{% else %}text-red-600{% endif %}">
+                {% if result.success %}
+                <span class="font-mono">{{ result.source }}</span>: {{ result.chunks_created }} chunks
+                {% else %}
+                <span class="font-mono">{{ result.source }}</span>: Failed - {{ result.error_message }}
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+</div>

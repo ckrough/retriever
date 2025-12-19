@@ -9,6 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from src.api.health import router as health_router
 from src.api.rate_limit import limiter, rate_limit_exceeded_handler
 from src.config import get_settings
+from src.web.admin_routes import router as admin_router
 from src.web.routes import router as web_router
 
 settings = get_settings()
@@ -34,4 +35,5 @@ if static_path.exists():
 
 # Register routers
 app.include_router(health_router, prefix="/health", tags=["health"])
+app.include_router(admin_router, tags=["admin"])
 app.include_router(web_router, tags=["web"])
