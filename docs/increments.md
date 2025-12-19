@@ -122,15 +122,17 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - See which chunks were used (debug view)
 
 **Build:**
-- [ ] Document loader (markdown/text first)
-- [ ] Text chunker (structure-aware)
-- [ ] OpenAI embeddings
-- [ ] Chroma vector store
-- [ ] RAG pipeline (retrieve + generate)
-- [ ] Admin page to trigger indexing
-- [ ] Show retrieved chunks in response
+- [x] Document loader (markdown/text first)
+- [x] Text chunker (structure-aware)
+- [x] OpenAI embeddings
+- [x] Chroma vector store
+- [x] RAG pipeline (retrieve + generate)
+- [x] Admin page to trigger indexing
+- [x] Show retrieved chunks in response
 
 **Validates:** Full RAG pipeline, chunking strategy, retrieval quality
+
+**Status:** ✅ Complete (PR #3)
 
 ---
 
