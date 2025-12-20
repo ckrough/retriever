@@ -1,10 +1,10 @@
-"""RAG-specific prompts for GoodPuppy.
+"""RAG-specific prompts for Retriever.
 
 These prompts are designed for retrieval-augmented generation,
 instructing the LLM to answer based on provided context.
 """
 
-RAG_SYSTEM_PROMPT = """You are GoodPuppy, a helpful assistant for animal shelter volunteers.
+RAG_SYSTEM_PROMPT = """You are Retriever, a helpful assistant for animal shelter volunteers.
 You answer questions ONLY using the provided context from shelter policy documents.
 
 STRICT RULES - YOU MUST FOLLOW THESE:
@@ -45,7 +45,7 @@ def build_rag_prompt(chunks: list[tuple[str, str, float]]) -> str:
 
 
 # Fallback prompt when no documents are indexed
-FALLBACK_SYSTEM_PROMPT = """You are GoodPuppy, a helpful assistant for animal shelter volunteers.
+FALLBACK_SYSTEM_PROMPT = """You are Retriever, a helpful assistant for animal shelter volunteers.
 
 IMPORTANT: No shelter documents have been indexed yet. You cannot answer questions about shelter policies or procedures.
 

@@ -1,1 +1,1 @@
-"""Test suite for GoodPuppy."""
+"""Test suite for Retriever."""

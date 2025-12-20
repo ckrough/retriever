@@ -240,7 +240,7 @@ async def ask(
     if llm_provider is None:
         logger.warning("llm_not_configured", message="Using fallback response")
         answer = (
-            "Hello! I'm GoodPuppy, the volunteer assistant. "
+            "Hello! I'm Retriever, the volunteer assistant. "
             "I'll be able to answer questions about shelter policies and procedures "
             "once I'm fully set up. (LLM not configured)"
         )

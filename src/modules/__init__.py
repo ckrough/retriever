@@ -1,4 +1,4 @@
-"""Business modules for GoodPuppy.
+"""Business modules for Retriever.
 
 This package contains the core business logic modules, organized
 following the modular monolith pattern. Each module is self-contained

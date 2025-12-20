@@ -1,6 +1,6 @@
 # Development Standards
 
-Standards for GoodPuppy development.
+Standards for Retriever development.
 
 ## Git Workflow: GitHub Flow
 
