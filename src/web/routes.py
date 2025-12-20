@@ -1,7 +1,7 @@
 """Web routes for server-rendered pages."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, Form, Request
@@ -9,11 +9,13 @@ from fastapi.responses import HTMLResponse, Response
 
 from src.api.rate_limit import get_rate_limit_string, limiter
 from src.config import Settings, get_settings
+from src.infrastructure.cache import ChromaSemanticCache
 from src.infrastructure.embeddings import OpenAIEmbeddingProvider
 from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.infrastructure.llm.openrouter import DEFAULT_SYSTEM_PROMPT
 from src.infrastructure.vectordb import ChromaVectorStore
-from src.modules.rag import RAGService
+from src.modules.rag import HybridRetriever, RAGService
+from src.web.dependencies import require_auth
 from src.web.templates import templates
 
 logger = structlog.get_logger()
@@ -23,8 +25,10 @@ router = APIRouter()
 # Input constraints
 MAX_QUESTION_LENGTH = 2000
 
-# Cache for vector store (singleton per process)
+# Singletons (per process)
 _vector_store_cache: dict[str, ChromaVectorStore] = {}
+_semantic_cache_instance: dict[str, ChromaSemanticCache] = {}
+_hybrid_retriever_instance: dict[str, HybridRetriever] = {}
 
 
 def get_llm_provider(
@@ -66,10 +70,84 @@ def get_vector_store(
     return _vector_store_cache[persist_path]
 
 
+def get_semantic_cache(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ChromaSemanticCache | None:
+    """Get or create the semantic cache singleton.
+
+    Returns None if caching is disabled or embeddings aren't configured.
+    """
+    if not settings.cache_enabled:
+        return None
+
+    if settings.embedding_api_key is None:
+        return None
+
+    persist_path = settings.chroma_persist_path
+
+    if persist_path not in _semantic_cache_instance:
+        embedding_provider = OpenAIEmbeddingProvider(
+            api_key=settings.embedding_api_key.get_secret_value(),
+            model=settings.embedding_model,
+            base_url=settings.embedding_base_url,
+            timeout_seconds=settings.embedding_timeout_seconds,
+            circuit_breaker_fail_max=settings.circuit_breaker_fail_max,
+            circuit_breaker_timeout=settings.circuit_breaker_timeout,
+        )
+
+        _semantic_cache_instance[persist_path] = ChromaSemanticCache(
+            embedding_provider=embedding_provider,
+            persist_path=Path(persist_path),
+            similarity_threshold=settings.cache_similarity_threshold,
+            ttl_hours=settings.cache_ttl_hours,
+        )
+
+    return _semantic_cache_instance[persist_path]
+
+
+def get_hybrid_retriever(
+    settings: Annotated[Settings, Depends(get_settings)],
+    vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
+) -> HybridRetriever | None:
+    """Get or create the hybrid retriever singleton.
+
+    Returns None if hybrid retrieval is disabled or embeddings aren't configured.
+    """
+    if not settings.hybrid_retrieval_enabled:
+        return None
+
+    if settings.embedding_api_key is None:
+        return None
+
+    persist_path = settings.chroma_persist_path
+
+    if persist_path not in _hybrid_retriever_instance:
+        embedding_provider = OpenAIEmbeddingProvider(
+            api_key=settings.embedding_api_key.get_secret_value(),
+            model=settings.embedding_model,
+            base_url=settings.embedding_base_url,
+            timeout_seconds=settings.embedding_timeout_seconds,
+            circuit_breaker_fail_max=settings.circuit_breaker_fail_max,
+            circuit_breaker_timeout=settings.circuit_breaker_timeout,
+        )
+
+        _hybrid_retriever_instance[persist_path] = HybridRetriever(
+            embedding_provider=embedding_provider,
+            vector_store=vector_store,
+            semantic_weight=settings.hybrid_semantic_weight,
+            keyword_weight=settings.hybrid_keyword_weight,
+            rrf_k=settings.hybrid_rrf_k,
+        )
+
+    return _hybrid_retriever_instance[persist_path]
+
+
 def get_rag_service(
     settings: Annotated[Settings, Depends(get_settings)],
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
+    semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
+    hybrid_retriever: Annotated[HybridRetriever | None, Depends(get_hybrid_retriever)],
 ) -> RAGService | None:
     """Get the RAG service if fully configured.
 
@@ -94,6 +172,8 @@ def get_rag_service(
         llm_provider=llm_provider,
         embedding_provider=embedding_provider,
         vector_store=vector_store,
+        semantic_cache=semantic_cache,
+        hybrid_retriever=hybrid_retriever,
         top_k=settings.rag_top_k,
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,
@@ -101,11 +181,18 @@ def get_rag_service(
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> Response:
-    """Render the main chat page."""
+async def index(
+    request: Request,
+    user: Annotated[dict[str, Any] | None, Depends(require_auth)],
+) -> Response:
+    """Render the main chat page.
+
+    Requires authentication when enabled.
+    """
     return templates.TemplateResponse(
         request=request,
         name="index.html",
+        context={"user": user},
     )
 
 
@@ -116,11 +203,12 @@ async def ask(
     question: Annotated[str, Form(min_length=1, max_length=MAX_QUESTION_LENGTH)],
     rag_service: Annotated[RAGService | None, Depends(get_rag_service)],
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
+    user: Annotated[dict[str, Any] | None, Depends(require_auth)],
 ) -> Response:
     """Handle a question submission and return the answer fragment.
 
     Uses RAG if configured and documents are indexed, otherwise falls back
-    to direct LLM or hardcoded responses.
+    to direct LLM or hardcoded responses. Requires authentication when enabled.
     """
     # If no LLM provider configured, use fallback response
     if llm_provider is None:

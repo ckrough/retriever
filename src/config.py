@@ -54,6 +54,32 @@ class Settings(BaseSettings):
     rag_top_k: int = 5  # Number of chunks to retrieve
     documents_path: str = "./documents"
 
+    # Semantic Cache
+    cache_enabled: bool = True  # Enable semantic caching for faster responses
+    cache_similarity_threshold: float = 0.95  # Minimum similarity for cache hit (0-1)
+    cache_ttl_hours: int = 24  # Time-to-live for cached entries
+
+    # Hybrid Retrieval
+    hybrid_retrieval_enabled: bool = True  # Enable hybrid (semantic + keyword) search
+    hybrid_semantic_weight: float = 0.5  # Weight for semantic search (0-1)
+    hybrid_keyword_weight: float = 0.5  # Weight for keyword search (0-1)
+    hybrid_rrf_k: int = 60  # RRF constant (higher = more uniform ranking)
+
+    # Content Safety
+    safety_enabled: bool = True  # Enable content safety checks
+    openai_api_key: SecretStr | None = None  # For moderation API (free)
+    moderation_timeout_seconds: float = 10.0  # Moderation API timeout
+    hallucination_threshold: float = 0.8  # Min claim support ratio (0-1)
+
+    # Database
+    database_path: str = "./data/goodpuppy.db"
+
+    # Authentication
+    auth_enabled: bool = True  # Enable authentication
+    jwt_secret_key: SecretStr | None = None  # Secret for JWT signing
+    jwt_algorithm: str = "HS256"
+    jwt_expire_hours: int = 24  # Token expiration in hours
+
 
 @lru_cache
 def get_settings() -> Settings:

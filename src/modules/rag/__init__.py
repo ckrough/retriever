@@ -13,6 +13,19 @@ from src.modules.rag.loader import (
     list_documents,
     load_document,
 )
+from src.modules.rag.quality import (
+    AnswerMetrics,
+    EvaluationResult,
+    EvaluationSummary,
+    GoldenExample,
+    RetrievalMetrics,
+    assess_example,
+    calculate_answer_metrics,
+    calculate_retrieval_metrics,
+    load_golden_dataset,
+    summarize_assessment,
+)
+from src.modules.rag.retriever import HybridRetriever, IndexedDocument
 from src.modules.rag.schemas import (
     Chunk,
     ChunkWithScore,
@@ -22,15 +35,27 @@ from src.modules.rag.schemas import (
 from src.modules.rag.service import RAGService
 
 __all__ = [
+    "AnswerMetrics",
     "Chunk",
     "ChunkWithScore",
     "ChunkingConfig",
     "DocumentLoadError",
+    "EvaluationResult",
+    "EvaluationSummary",
+    "GoldenExample",
+    "HybridRetriever",
+    "IndexedDocument",
     "IndexingResult",
     "LoadedDocument",
     "RAGResponse",
     "RAGService",
+    "RetrievalMetrics",
+    "assess_example",
+    "calculate_answer_metrics",
+    "calculate_retrieval_metrics",
     "chunk_document",
     "list_documents",
     "load_document",
+    "load_golden_dataset",
+    "summarize_assessment",
 ]

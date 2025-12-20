@@ -176,15 +176,17 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - Answers cite sources more accurately
 
 **Build:**
-- [ ] Semantic caching (cache by question similarity)
-- [ ] Golden Q&A dataset (30+ examples from real docs)
-- [ ] RAG quality tests (retrieval accuracy, answer accuracy)
-- [ ] Hybrid retrieval (semantic + BM25 keyword search)
-- [ ] Reranking integration (Cohere or RRF)
-- [ ] Cache invalidation on document reindex
-- [ ] Quality metrics logging
+- [x] Semantic caching (cache by question similarity)
+- [x] Golden Q&A dataset (30+ examples from real docs)
+- [x] RAG quality tests (retrieval accuracy, answer accuracy)
+- [x] Hybrid retrieval (semantic + BM25 keyword search)
+- [x] Reranking integration (Cohere or RRF)
+- [x] Cache invalidation on document reindex
+- [x] Quality metrics logging
 
 **Validates:** Cache effectiveness, retrieval quality improvement, regression detection
+
+**Status:** ✅ Complete
 
 ---
 
@@ -201,16 +203,18 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - Low-confidence answers flagged for review
 
 **Build:**
-- [ ] OpenAI Moderation API integration
-- [ ] Input/output filtering
-- [ ] Prompt injection detection (pattern-based)
-- [ ] Hallucination detection (claim verification)
-- [ ] Confidence scoring for answers
-- [ ] Fallback responses for low-confidence
-- [ ] Safety logging (without storing harmful content)
-- [ ] Model fallback chain (Sonnet → Haiku)
+- [x] OpenAI Moderation API integration
+- [x] Input/output filtering
+- [x] Prompt injection detection (pattern-based)
+- [x] Hallucination detection (claim verification)
+- [x] Confidence scoring for answers
+- [x] Fallback responses for low-confidence
+- [x] Safety logging (without storing harmful content)
+- [x] Model fallback chain (Sonnet → Haiku)
 
 **Validates:** Content moderation, attack prevention, answer accuracy
+
+**Status:** ✅ Complete
 
 ---
 
@@ -227,14 +231,16 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - Log out
 
 **Build:**
-- [ ] User model + SQLite
-- [ ] Registration endpoint (admin creates users)
-- [ ] Login page
-- [ ] JWT session handling
-- [ ] Protected routes
-- [ ] Logout
+- [x] User model + SQLite
+- [x] Registration endpoint (admin creates users)
+- [x] Login page
+- [x] JWT session handling
+- [x] Protected routes
+- [x] Logout
 
 **Validates:** Auth flow, session management
+
+**Status:** ✅ Complete
 
 ---
 
@@ -306,22 +312,26 @@ Agile vertical slices - each increment delivers a working, visible feature.
 
 ## Increment 11: Feedback & Improvement
 
-**Goal:** Volunteers can rate answers.
+**Goal:** Volunteers can rate answers and quickly find key info.
 
-**Deliverable:** Thumbs up/down on answers, feedback loop.
+**Deliverable:** Thumbs up/down on answers, feedback loop, prominent contact/source display.
 
 **What you'll see:**
 - Each answer has 👍/👎 buttons
 - Feedback stored for review
 - Admin sees low-rated answers
+- **Most likely contact person shown at top of answer** (e.g., "Contact: Jane Smith, Adoption Coordinator")
+- **Primary source document highlighted** (e.g., "Source: Adoption Procedures Guide")
 
 **Build:**
 - [ ] Feedback UI
 - [ ] Feedback storage
 - [ ] Admin feedback review
 - [ ] Flag for document updates
+- [ ] Extract and display primary contact from source documents
+- [ ] Surface most relevant source document prominently at answer top
 
-**Validates:** Continuous improvement loop
+**Validates:** Continuous improvement loop, quick access to contacts/sources
 
 ---
 
