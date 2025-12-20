@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "goodpuppy"
+name = "retriever"
 version = "0.1.0"
-description = "AI-powered Q&A system for shelter volunteers"
+description = "AI-powered Q&A system for documents"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-authors = [{ name = "GoodPuppy Team" }]
+authors = [{ name = "Chris Krough" }]
 
 dependencies = [
     # Web framework

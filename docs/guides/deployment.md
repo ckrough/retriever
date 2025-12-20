@@ -1,6 +1,6 @@
 # Deployment Guide
 
-How to deploy GoodPuppy to production.
+How to deploy Retriever to production.
 
 ## Recommended Platforms
 
@@ -81,7 +81,7 @@ For SQLite and Chroma data:
 # render.yaml
 services:
   - type: web
-    name: goodpuppy
+    name: retriever
     env: python
     buildCommand: pip install -e .
     startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT

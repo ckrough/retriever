@@ -40,7 +40,7 @@ class TestIndexPage:
         response = client.get("/")
 
         assert response.status_code == 200
-        assert "GoodPuppy" in response.text
+        assert "Retriever" in response.text
         assert "Volunteer Assistant" in response.text
 
 
@@ -96,7 +96,7 @@ class TestAskEndpointFallback:
 
         assert response.status_code == 200
         assert "Hello" in response.text  # Question echoed back
-        assert "GoodPuppy" in response.text  # Answer contains app name
+        assert "Retriever" in response.text  # Answer contains app name
         assert "LLM not configured" in response.text
 
 

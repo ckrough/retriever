@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Context Loading:** Use the [Documentation Index](#documentation-index) below to find and load only relevant docs for your current task. Avoid loading all documentation at once.
 
-## Project: GoodPuppy
+## Project: Retriever
 
 AI-powered Q&A system for shelter volunteers, using RAG to answer questions from policy/procedure documents.
 

@@ -1,6 +1,6 @@
 """RAG (Retrieval-Augmented Generation) module.
 
-This module provides the core RAG functionality for GoodPuppy:
+This module provides the core RAG functionality for Retriever:
 - Document loading and chunking
 - Question answering with retrieved context
 - Document indexing

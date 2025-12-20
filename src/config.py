@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     # Application
-    app_name: str = "GoodPuppy"
+    app_name: str = "Retriever"
     app_version: str = "0.1.0"
     debug: bool = False
 
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # Chroma Vector Database
     chroma_persist_path: str = "./data/chroma"
-    chroma_collection_name: str = "goodpuppy_documents"
+    chroma_collection_name: str = "retriever_documents"
 
     # RAG Settings
     rag_chunk_size: int = 1500  # Characters
@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     hallucination_threshold: float = 0.8  # Min claim support ratio (0-1)
 
     # Database
-    database_path: str = "./data/goodpuppy.db"
+    database_path: str = "./data/retriever.db"
 
     # Authentication
     auth_enabled: bool = True  # Enable authentication

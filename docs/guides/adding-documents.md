@@ -1,6 +1,6 @@
 # Adding and Updating Documents
 
-How to add, update, and manage shelter policy documents in GoodPuppy.
+How to add, update, and manage shelter policy documents in Retriever.
 
 ## Supported Formats
 
@@ -15,7 +15,7 @@ How to add, update, and manage shelter policy documents in GoodPuppy.
 Documents live in the `documents/` directory at the project root:
 
 ```
-goodpuppy/
+retriever/
 ├── documents/
 │   ├── volunteer-handbook.md
 │   ├── safety-procedures.docx

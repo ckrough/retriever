@@ -54,7 +54,7 @@ Agile vertical slices - each increment delivers a working, visible feature.
 **What you'll see:**
 - Visit `http://localhost:8000`
 - See a simple chat interface
-- Type "Hello" → Get "Hello! I'm GoodPuppy, the volunteer assistant."
+- Type "Hello" → Get "Hello! I'm Retriever, the volunteer assistant."
 
 **Build:**
 - [x] Project setup (pyproject.toml, dev container)
@@ -364,7 +364,7 @@ Agile vertical slices - each increment delivers a working, visible feature.
 **Deliverable:** Deployed app with documentation.
 
 **What you'll see:**
-- App running at `goodpuppy.example.org`
+- App running at `retriever.example.org`
 - SSL certificate
 - Volunteers can actually use it
 

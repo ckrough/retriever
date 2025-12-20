@@ -21,8 +21,8 @@ from src.infrastructure.llm.exceptions import (
 
 logger = structlog.get_logger()
 
-# System prompt for GoodPuppy assistant
-DEFAULT_SYSTEM_PROMPT = """You are GoodPuppy, a helpful assistant for animal shelter volunteers.
+# System prompt for Retriever assistant
+DEFAULT_SYSTEM_PROMPT = """You are Retriever, a helpful assistant for animal shelter volunteers.
 You help answer questions about shelter policies, procedures, and animal care.
 Be friendly, concise, and accurate. If you don't know something, say so."""
 

@@ -1,4 +1,4 @@
-# GoodPuppy: Implementation Plan
+# Retriever: Implementation Plan
 
 AI-powered Q&A system for shelter volunteers, using RAG to answer questions from policy/procedure documents.
 

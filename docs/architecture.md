@@ -1,4 +1,4 @@
-# GoodPuppy Architecture
+# Retriever Architecture
 
 AI-powered Q&A system for shelter volunteers, using RAG to answer questions from policy/procedure documents.
 
@@ -33,7 +33,7 @@ Single deployable unit with clean module boundaries. See [ADR-003](decisions/003
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                      GoodPuppy (Monolith)                  │
+│                      Retriever (Monolith)                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
 │  │   Auth       │  │    RAG       │  │   Documents  │      │
 │  │   Module     │  │   Module     │  │   Module     │      │
@@ -88,7 +88,7 @@ Single deployable unit with clean module boundaries. See [ADR-003](decisions/003
 ## Project Structure
 
 ```
-goodpuppy/
+retriever/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                 # FastAPI app entry point
