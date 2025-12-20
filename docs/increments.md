@@ -65,6 +65,8 @@ Agile vertical slices - each increment delivers a working, visible feature.
 - [x] Health endpoint `/health`
 - [x] Input validation (1-2000 chars) *(added during code review)*
 - [x] XSS prevention tests *(added during code review)*
+- [ ] Pre-commit hooks for automated quality checks (ruff, mypy)
+- [ ] GitHub Actions CI pipeline (lint, type-check, test on PR)
 
 **Validates:** Dev environment, FastAPI, HTMX, Tailwind, deployment pipeline
 
@@ -302,6 +304,8 @@ Agile vertical slices - each increment delivers a working, visible feature.
 **Build:**
 - [ ] Sentry integration (errors + performance)
 - [ ] structlog setup (JSON, request IDs)
+- [ ] OpenTelemetry tracing for production debugging
+- [ ] Prompt versioning for tracking prompt changes
 - [ ] Cost tracking per request
 - [ ] Health check endpoints (/health, /health/ready)
 - [ ] External uptime monitoring (UptimeRobot)
