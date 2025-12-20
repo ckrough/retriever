@@ -380,6 +380,10 @@ class TestGoldenDatasetIntegrity:
             )
             assert example.category, f"Example {example.id} missing category"
 
+    @pytest.mark.skipif(
+        not (Path(__file__).parent.parent / "documents").exists(),
+        reason="documents/ directory not present (gitignored)",
+    )
     def test_golden_dataset_sources_reference_real_files(self) -> None:
         """Expected sources should reference real document files."""
         dataset_path = Path(__file__).parent / "golden_dataset.json"
