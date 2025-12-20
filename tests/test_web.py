@@ -2,20 +2,31 @@
 
 from collections.abc import Generator
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.main import app
+from src.web.dependencies import require_auth
 from src.web.routes import MAX_QUESTION_LENGTH, get_llm_provider
+
+# Mock user for authenticated tests
+MOCK_USER = {
+    "user_id": str(uuid4()),
+    "email": "test@example.com",
+    "is_admin": False,
+}
 
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
-    """Create test client fixture with cleared dependency overrides."""
+    """Create test client fixture with mocked authentication."""
     # Clear any existing overrides
     app.dependency_overrides.clear()
+    # Mock authentication to return test user (simulates logged-in user)
+    app.dependency_overrides[require_auth] = lambda: MOCK_USER
     yield TestClient(app)
     # Clean up after test
     app.dependency_overrides.clear()
@@ -142,9 +153,10 @@ class TestRateLimiting:
         """Client with fresh rate limit storage."""
         from src.api.rate_limit import limiter
 
-        # Clear rate limit storage and use fallback LLM
+        # Clear rate limit storage, use fallback LLM, and mock auth
         limiter.reset()
         app.dependency_overrides[get_llm_provider] = lambda: None
+        app.dependency_overrides[require_auth] = lambda: MOCK_USER
         yield TestClient(app)
         app.dependency_overrides.clear()
 

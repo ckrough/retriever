@@ -86,7 +86,7 @@ def require_admin(
 
 # Exception handler for AuthenticationRequired
 async def auth_exception_handler(
-    request: Request, exc: AuthenticationRequired
+    request: Request, _exc: AuthenticationRequired
 ) -> RedirectResponse:
     """Handle AuthenticationRequired by redirecting to login.
 

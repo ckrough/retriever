@@ -1,7 +1,11 @@
 """Chroma vector store implementation."""
 
+import os
 from pathlib import Path
 from typing import Any
+
+# Disable Chroma telemetry (fixes posthog capture() error in v0.5.x)
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 import chromadb
 import structlog

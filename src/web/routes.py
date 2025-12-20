@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Annotated, Any
+from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, Form, Request
@@ -10,11 +11,13 @@ from fastapi.responses import HTMLResponse, Response
 from src.api.rate_limit import get_rate_limit_string, limiter
 from src.config import Settings, get_settings
 from src.infrastructure.cache import ChromaSemanticCache
+from src.infrastructure.database import get_database
 from src.infrastructure.embeddings import OpenAIEmbeddingProvider
 from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.infrastructure.llm.openrouter import DEFAULT_SYSTEM_PROMPT
 from src.infrastructure.vectordb import ChromaVectorStore
 from src.modules.rag import HybridRetriever, RAGService
+from src.modules.rag.message_store import MessageStore
 from src.web.dependencies import require_auth
 from src.web.templates import templates
 
@@ -204,12 +207,35 @@ async def ask(
     rag_service: Annotated[RAGService | None, Depends(get_rag_service)],
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
     user: Annotated[dict[str, Any] | None, Depends(require_auth)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Handle a question submission and return the answer fragment.
 
     Uses RAG if configured and documents are indexed, otherwise falls back
     to direct LLM or hardcoded responses. Requires authentication when enabled.
+    Includes conversation history for multi-turn context when user is authenticated.
     """
+    # Get user ID for conversation history (if authenticated)
+    user_id: UUID | None = None
+    if user is not None:
+        user_id = UUID(user["user_id"])
+
+    # Load conversation history for context
+    conversation_history: list[dict[str, str]] = []
+    if user_id is not None:
+        try:
+            db = get_database()
+            message_store = MessageStore(db)
+            messages = await message_store.get_recent_messages(
+                user_id, limit=settings.conversation_max_messages
+            )
+            conversation_history = [
+                {"role": msg.role, "content": msg.content} for msg in messages
+            ]
+        except Exception as e:
+            logger.warning("conversation_history_load_error", error=str(e))
+            # Continue without history on error
+
     # If no LLM provider configured, use fallback response
     if llm_provider is None:
         logger.warning("llm_not_configured", message="Using fallback response")
@@ -227,29 +253,50 @@ async def ask(
     try:
         # Try RAG if available
         if rag_service is not None:
-            response = await rag_service.ask(question)
-
-            return templates.TemplateResponse(
-                request=request,
-                name="partials/message_pair.html",
-                context={
-                    "question": question,
-                    "answer": response.answer,
-                    "chunks_used": response.chunks_used,
-                },
+            response = await rag_service.ask(
+                question,
+                conversation_history=conversation_history
+                if conversation_history
+                else None,
             )
+            answer = response.answer
+            chunks_used = response.chunks_used
+        else:
+            # Fall back to direct LLM (no RAG)
+            logger.info("rag_not_available", message="Using direct LLM")
+            if conversation_history:
+                llm_messages = conversation_history.copy()
+                llm_messages.append({"role": "user", "content": question})
+                answer = await llm_provider.complete_with_history(
+                    system_prompt=DEFAULT_SYSTEM_PROMPT,
+                    messages=llm_messages,
+                )
+            else:
+                answer = await llm_provider.complete(
+                    system_prompt=DEFAULT_SYSTEM_PROMPT,
+                    user_message=question,
+                )
+            chunks_used = []
 
-        # Fall back to direct LLM (no RAG)
-        logger.info("rag_not_available", message="Using direct LLM")
-        answer = await llm_provider.complete(
-            system_prompt=DEFAULT_SYSTEM_PROMPT,
-            user_message=question,
-        )
+        # Save messages to conversation history
+        if user_id is not None:
+            try:
+                db = get_database()
+                message_store = MessageStore(db)
+                await message_store.save_message(user_id, "user", question)
+                await message_store.save_message(user_id, "assistant", answer)
+            except Exception as e:
+                logger.warning("conversation_history_save_error", error=str(e))
+                # Continue without saving on error
 
         return templates.TemplateResponse(
             request=request,
             name="partials/message_pair.html",
-            context={"question": question, "answer": answer, "chunks_used": []},
+            context={
+                "question": question,
+                "answer": answer,
+                "chunks_used": chunks_used,
+            },
         )
 
     except LLMProviderError as e:
@@ -268,3 +315,90 @@ async def ask(
                 "error_message": "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
             },
         )
+
+
+@router.get("/history", response_class=HTMLResponse)
+async def get_history(
+    request: Request,
+    user: Annotated[dict[str, Any] | None, Depends(require_auth)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Get conversation history for the current user.
+
+    Returns HTML fragments for all messages to load on page refresh.
+    Requires authentication.
+    """
+    if user is None:
+        # No user, return empty
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/message_history.html",
+            context={"messages": []},
+        )
+
+    user_id = UUID(user["user_id"])
+
+    try:
+        db = get_database()
+        message_store = MessageStore(db)
+        messages = await message_store.get_recent_messages(
+            user_id, limit=settings.conversation_max_messages
+        )
+
+        # Group messages into pairs for display
+        message_pairs: list[dict[str, str]] = []
+        i = 0
+        while i < len(messages):
+            if messages[i].role == "user":
+                question = messages[i].content
+                answer = ""
+                # Look for the assistant response
+                if i + 1 < len(messages) and messages[i + 1].role == "assistant":
+                    answer = messages[i + 1].content
+                    i += 2
+                else:
+                    i += 1
+                message_pairs.append({"question": question, "answer": answer})
+            else:
+                # Orphan assistant message, skip
+                i += 1
+
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/message_history.html",
+            context={"message_pairs": message_pairs},
+        )
+
+    except Exception as e:
+        logger.warning("conversation_history_load_error", error=str(e))
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/message_history.html",
+            context={"message_pairs": []},
+        )
+
+
+@router.get("/clear-chat", response_class=HTMLResponse)
+async def clear_chat(
+    user: Annotated[dict[str, Any] | None, Depends(require_auth)],
+) -> Response:
+    """Clear conversation history for the current user.
+
+    Deletes all messages and returns empty chat container.
+    Requires authentication.
+    """
+    if user is not None:
+        user_id = UUID(user["user_id"])
+        try:
+            db = get_database()
+            message_store = MessageStore(db)
+            deleted = await message_store.clear_messages(user_id)
+            logger.info("chat_cleared", user_id=str(user_id), messages_deleted=deleted)
+        except Exception as e:
+            logger.warning("clear_chat_error", error=str(e))
+
+    # Return empty container
+    return Response(
+        content="",
+        media_type="text/html",
+    )

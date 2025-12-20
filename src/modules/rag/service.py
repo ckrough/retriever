@@ -119,11 +119,18 @@ class RAGService:
         # Track indexed documents for keyword index rebuilding
         self._indexed_docs: list[IndexedDocument] = []
 
-    async def ask(self, question: str) -> RAGResponse:
-        """Answer a question using RAG.
+    async def ask(
+        self,
+        question: str,
+        conversation_history: list[dict[str, str]] | None = None,
+    ) -> RAGResponse:
+        """Answer a question using RAG with optional conversation history.
 
         Args:
             question: The user's question.
+            conversation_history: Optional list of prior messages as
+                [{"role": "user"|"assistant", "content": "..."}].
+                When provided, enables multi-turn conversation context.
 
         Returns:
             RAGResponse with answer and retrieved chunks.
@@ -165,10 +172,18 @@ class RAGService:
         # Check if we have any documents indexed
         if self._store.count() == 0:
             logger.info("rag_no_documents", question_length=len(question))
-            answer = await self._llm.complete(
-                system_prompt=FALLBACK_SYSTEM_PROMPT,
-                user_message=question,
-            )
+            if conversation_history:
+                messages = conversation_history.copy()
+                messages.append({"role": "user", "content": question})
+                answer = await self._llm.complete_with_history(
+                    system_prompt=FALLBACK_SYSTEM_PROMPT,
+                    messages=messages,
+                )
+            else:
+                answer = await self._llm.complete(
+                    system_prompt=FALLBACK_SYSTEM_PROMPT,
+                    user_message=question,
+                )
             # Don't cache fallback responses (no context)
             return RAGResponse(
                 answer=answer,
@@ -215,11 +230,24 @@ class RAGService:
             "rag_generating",
             context_chunks=len(results),
             question_length=len(question),
+            has_history=conversation_history is not None,
+            history_length=len(conversation_history) if conversation_history else 0,
         )
-        answer = await self._llm.complete(
-            system_prompt=system_prompt,
-            user_message=question,
-        )
+
+        if conversation_history:
+            # Multi-turn: include conversation history
+            messages = conversation_history.copy()
+            messages.append({"role": "user", "content": question})
+            answer = await self._llm.complete_with_history(
+                system_prompt=system_prompt,
+                messages=messages,
+            )
+        else:
+            # Single-turn: no history
+            answer = await self._llm.complete(
+                system_prompt=system_prompt,
+                user_message=question,
+            )
 
         # Calculate confidence score
         scores = [c.score for c in chunks_used]

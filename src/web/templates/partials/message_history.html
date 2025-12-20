@@ -1,0 +1,23 @@
+{% for pair in message_pairs %}
+<!-- User question -->
+<div class="flex gap-3 justify-end">
+    <div class="bg-amber-500 text-white rounded-lg shadow-sm p-3 max-w-[80%]">
+        <p>{{ pair.question }}</p>
+    </div>
+    <div class="flex-shrink-0 w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm">
+        👤
+    </div>
+</div>
+
+<!-- Assistant answer -->
+{% if pair.answer %}
+<div class="flex gap-3">
+    <div class="flex-shrink-0 w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center text-sm">
+        🐕
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-3 max-w-[80%]">
+        <p class="text-gray-700 whitespace-pre-wrap">{{ pair.answer }}</p>
+    </div>
+</div>
+{% endif %}
+{% endfor %}

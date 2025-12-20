@@ -1,9 +1,9 @@
 """SQLite database connection management."""
 
 import sqlite3
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
 
 import aiosqlite
 import structlog
@@ -11,7 +11,7 @@ import structlog
 logger = structlog.get_logger()
 
 # SQL for creating tables
-_CREATE_USERS_TABLE = """
+_CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -25,6 +25,16 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_external_id ON users(external_id);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_user_created ON messages(user_id, created_at);
 """
 
 
@@ -56,7 +66,7 @@ class Database:
         await self._connection.execute("PRAGMA foreign_keys = ON")
 
         # Create tables
-        await self._connection.executescript(_CREATE_USERS_TABLE)
+        await self._connection.executescript(_CREATE_TABLES)
         await self._connection.commit()
 
         logger.info("database_connected", path=str(self._db_path))
@@ -148,7 +158,7 @@ class Database:
             List of rows.
         """
         cursor = await self.execute(sql, parameters)
-        return await cursor.fetchall()
+        return list(await cursor.fetchall())
 
 
 # Global database instance

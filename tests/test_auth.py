@@ -1,7 +1,7 @@
 """Tests for authentication module."""
 
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -47,8 +47,8 @@ class TestUserModel:
             external_id=None,
             is_active=True,
             is_admin=False,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         assert user.email == "test@example.com"
         assert user.is_active
@@ -56,7 +56,7 @@ class TestUserModel:
 
     def test_user_from_row(self) -> None:
         """Should create user from database row."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         row = {
             "id": str(uuid4()),
             "email": "test@example.com",
@@ -280,7 +280,9 @@ class TestAuthService:
         """Should register an admin user."""
         from src.modules.auth.schemas import UserCreate
 
-        data = UserCreate(email="admin@example.com", password="password123", is_admin=True)
+        data = UserCreate(
+            email="admin@example.com", password="password123", is_admin=True
+        )
         user = await auth_service.register(data)
 
         assert user.is_admin

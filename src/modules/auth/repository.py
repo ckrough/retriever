@@ -1,6 +1,6 @@
 """User repository for database operations."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import structlog
@@ -48,7 +48,7 @@ class UserRepository:
             ValueError: If email already exists.
         """
         user_id = uuid4()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         try:
             await self._db.execute(
@@ -132,7 +132,7 @@ class UserRepository:
         Returns:
             The updated User.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         await self._db.execute(
             """

@@ -240,6 +240,7 @@ Read ADRs when you need to understand *why* a technical choice was made or when 
 | 005 | `docs/decisions/005-embedding-model.md` | text-embedding-3-small, OpenAI embeddings |
 | 013 | `docs/decisions/013-semantic-caching.md` | Query caching, similarity matching, cost reduction |
 | 016 | `docs/decisions/016-hybrid-retrieval.md` | BM25, semantic search, Cohere reranking |
+| 017 | `docs/decisions/017-conversation-history-schema.md` | Messages table, no FK constraint, MVP schema |
 
 **Safety & Security**
 | ADR | Path | Topics |
@@ -266,7 +267,7 @@ Read ADRs when you need to understand *why* a technical choice was made or when 
 
 | Topic | Primary Doc | Related ADRs |
 |-------|-------------|--------------|
-| RAG pipeline | `docs/architecture.md` | 002, 004, 005, 013, 014, 016 |
+| RAG pipeline | `docs/architecture.md` | 002, 004, 005, 013, 014, 016, 017 |
 | Security | `docs/development-standards.md` | 007, 009, 012, 015 |
 | Deployment | `docs/guides/deployment.md` | 008, 010 |
 | Code patterns | `docs/development-standards.md` | 001, 003 |

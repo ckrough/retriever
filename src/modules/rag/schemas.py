@@ -1,7 +1,9 @@
-"""Pydantic schemas for the RAG module."""
+"""Schemas for the RAG module."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 if TYPE_CHECKING:
     from src.infrastructure.vectordb import RetrievalResult
@@ -76,4 +78,37 @@ class ChunkWithScore:
             section=result.metadata.get("section", ""),
             score=result.score,
             title=result.metadata.get("title", ""),
+        )
+
+
+@dataclass
+class Message:
+    """A conversation message.
+
+    Represents a single message in a conversation history,
+    either from the user or the assistant.
+    """
+
+    id: UUID
+    user_id: UUID
+    role: str  # 'user' or 'assistant'
+    content: str
+    created_at: datetime
+
+    @classmethod
+    def from_row(cls, row: dict[str, object]) -> "Message":
+        """Create a Message from a database row.
+
+        Args:
+            row: Dictionary containing database row values.
+
+        Returns:
+            Message instance.
+        """
+        return cls(
+            id=UUID(str(row["id"])),
+            user_id=UUID(str(row["user_id"])),
+            role=str(row["role"]),
+            content=str(row["content"]),
+            created_at=datetime.fromisoformat(str(row["created_at"])),
         )
