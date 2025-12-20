@@ -2,8 +2,6 @@
   <img src="assets/logo.png" alt="Retriever Logo" width="200" height="200">
 </p>
 
-<h1 align="center">Retriever</h1>
-
 <p align="center">
   <strong>AI-powered Q&A for your organization's documents</strong>
 </p>
