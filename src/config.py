@@ -71,6 +71,15 @@ class Settings(BaseSettings):
     moderation_timeout_seconds: float = 10.0  # Moderation API timeout
     hallucination_threshold: float = 0.8  # Min claim support ratio (0-1)
 
+    # Database
+    database_path: str = "./data/goodpuppy.db"
+
+    # Authentication
+    auth_enabled: bool = True  # Enable authentication
+    jwt_secret_key: SecretStr | None = None  # Secret for JWT signing
+    jwt_algorithm: str = "HS256"
+    jwt_expire_hours: int = 24  # Token expiration in hours
+
 
 @lru_cache
 def get_settings() -> Settings:

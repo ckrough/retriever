@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, Request
@@ -18,6 +18,7 @@ from src.infrastructure.llm import OpenRouterProvider
 from src.infrastructure.vectordb import ChromaVectorStore
 from src.modules.rag import HybridRetriever, RAGService, list_documents, load_document
 from src.modules.rag.loader import DocumentLoadError
+from src.web.dependencies import require_admin
 from src.web.routes import (
     get_hybrid_retriever,
     get_llm_provider,
@@ -111,8 +112,12 @@ async def admin_index(
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
     hybrid_retriever: Annotated[HybridRetriever | None, Depends(get_hybrid_retriever)],
+    admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
-    """Render the admin dashboard."""
+    """Render the admin dashboard.
+
+    Requires admin authentication when enabled.
+    """
     documents_path = Path(settings.documents_path)
     document_paths = list_documents(documents_path)
 
@@ -155,8 +160,12 @@ async def index_documents(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     rag_service: Annotated[RAGService | None, Depends(get_admin_rag_service)],
+    admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
-    """Index all documents in the documents folder."""
+    """Index all documents in the documents folder.
+
+    Requires admin authentication when enabled.
+    """
     if rag_service is None:
         return templates.TemplateResponse(
             request=request,
@@ -223,8 +232,12 @@ async def index_documents(
 async def clear_cache(
     request: Request,
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
+    admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
-    """Clear the semantic cache without affecting indexed documents."""
+    """Clear the semantic cache without affecting indexed documents.
+
+    Requires admin authentication when enabled.
+    """
     if semantic_cache is None:
         return templates.TemplateResponse(
             request=request,

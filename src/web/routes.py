@@ -1,7 +1,7 @@
 """Web routes for server-rendered pages."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, Form, Request
@@ -15,6 +15,7 @@ from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.infrastructure.llm.openrouter import DEFAULT_SYSTEM_PROMPT
 from src.infrastructure.vectordb import ChromaVectorStore
 from src.modules.rag import HybridRetriever, RAGService
+from src.web.dependencies import require_auth
 from src.web.templates import templates
 
 logger = structlog.get_logger()
@@ -180,11 +181,18 @@ def get_rag_service(
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> Response:
-    """Render the main chat page."""
+async def index(
+    request: Request,
+    user: Annotated[dict[str, Any] | None, Depends(require_auth)],
+) -> Response:
+    """Render the main chat page.
+
+    Requires authentication when enabled.
+    """
     return templates.TemplateResponse(
         request=request,
         name="index.html",
+        context={"user": user},
     )
 
 
@@ -195,11 +203,12 @@ async def ask(
     question: Annotated[str, Form(min_length=1, max_length=MAX_QUESTION_LENGTH)],
     rag_service: Annotated[RAGService | None, Depends(get_rag_service)],
     llm_provider: Annotated[OpenRouterProvider | None, Depends(get_llm_provider)],
+    user: Annotated[dict[str, Any] | None, Depends(require_auth)],
 ) -> Response:
     """Handle a question submission and return the answer fragment.
 
     Uses RAG if configured and documents are indexed, otherwise falls back
-    to direct LLM or hardcoded responses.
+    to direct LLM or hardcoded responses. Requires authentication when enabled.
     """
     # If no LLM provider configured, use fallback response
     if llm_provider is None:
