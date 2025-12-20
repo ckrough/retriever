@@ -6,12 +6,22 @@
 <div class="flex flex-col h-full max-w-3xl mx-auto">
     <!-- Header -->
     <header class="bg-white shadow-sm border-b border-gray-200 px-4 py-3">
-        <div class="flex items-center gap-3">
-            <div class="text-2xl">🐕</div>
-            <div>
-                <h1 class="text-lg font-semibold text-gray-900">GoodPuppy</h1>
-                <p class="text-sm text-gray-500">Volunteer Assistant</p>
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="text-2xl">🐕</div>
+                <div>
+                    <h1 class="text-lg font-semibold text-gray-900">GoodPuppy</h1>
+                    <p class="text-sm text-gray-500">Volunteer Assistant</p>
+                </div>
             </div>
+            <button
+                hx-get="/clear-chat"
+                hx-target="#messages"
+                hx-swap="innerHTML"
+                class="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors"
+            >
+                New Chat
+            </button>
         </div>
     </header>
 
@@ -30,7 +40,10 @@
         </div>
 
         <!-- Messages will be appended here via HTMX -->
-        <div id="messages"></div>
+        <div id="messages"
+             hx-get="/history"
+             hx-trigger="load"
+             hx-swap="innerHTML"></div>
     </main>
 
     <!-- Input form -->

@@ -112,7 +112,7 @@ async def admin_index(
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
     hybrid_retriever: Annotated[HybridRetriever | None, Depends(get_hybrid_retriever)],
-    admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
+    _admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
     """Render the admin dashboard.
 
@@ -160,7 +160,7 @@ async def index_documents(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     rag_service: Annotated[RAGService | None, Depends(get_admin_rag_service)],
-    admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
+    _admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
     """Index all documents in the documents folder.
 
@@ -232,7 +232,7 @@ async def index_documents(
 async def clear_cache(
     request: Request,
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
-    admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
+    _admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
     """Clear the semantic cache without affecting indexed documents.
 

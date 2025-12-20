@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from src.api.health import router as health_router
 from src.api.rate_limit import limiter, rate_limit_exceeded_handler
 from src.config import get_settings
-from src.infrastructure.database import Database
+from src.infrastructure.database import Database, init_database
 from src.modules.auth.repository import UserRepository
 from src.modules.auth.routes import router as auth_api_router
 from src.modules.auth.routes import set_auth_service as set_api_auth_service
@@ -31,15 +31,14 @@ _database: Database | None = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
     global _database
 
-    # Initialize database
+    # Initialize database (sets global in connection module)
     db_path = Path(settings.database_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    _database = Database(db_path)
-    await _database.connect()
+    _database = await init_database(db_path)
     logger.info("database_connected", path=str(db_path))
 
     # Initialize auth service if enabled
@@ -55,7 +54,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         set_web_auth_service(auth_service)
         logger.info("auth_service_initialized")
     else:
-        logger.warning("auth_disabled", reason="auth_enabled=False or jwt_secret_key not set")
+        logger.warning(
+            "auth_disabled", reason="auth_enabled=False or jwt_secret_key not set"
+        )
 
     yield
 
@@ -63,6 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if _database:
         await _database.disconnect()
         logger.info("database_disconnected")
+
 
 app = FastAPI(
     title=settings.app_name,

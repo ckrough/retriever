@@ -33,3 +33,27 @@ class LLMProvider(Protocol):
             LLMRateLimitError: If rate limited by the provider.
         """
         ...
+
+    async def complete_with_history(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        *,
+        model: str | None = None,
+    ) -> str:
+        """Generate a completion with conversation history.
+
+        Args:
+            system_prompt: The system message setting context/behavior.
+            messages: Conversation history as list of {"role": "user"|"assistant", "content": "..."}.
+            model: Optional model override. Uses provider default if not specified.
+
+        Returns:
+            The generated completion text.
+
+        Raises:
+            LLMProviderError: If the completion fails.
+            LLMTimeoutError: If the request times out.
+            LLMRateLimitError: If rate limited by the provider.
+        """
+        ...

@@ -3,7 +3,7 @@
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, Form, Request, Response
+from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from src.modules.auth.service import AuthenticationError, AuthService
@@ -102,7 +102,11 @@ async def login_submit(
         return templates.TemplateResponse(
             request=request,
             name="auth/login.html",
-            context={"error": "Authentication not configured", "email": email, "next": next},
+            context={
+                "error": "Authentication not configured",
+                "email": email,
+                "next": next,
+            },
         )
 
     try:

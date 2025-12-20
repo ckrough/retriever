@@ -1,6 +1,6 @@
 """Authentication service for user management."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import structlog
@@ -113,7 +113,7 @@ class AuthService:
         Returns:
             LoginResponse with token and user info.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expires = now + timedelta(hours=self._jwt_expire_hours)
 
         # JWT requires integer timestamps for exp and iat
@@ -167,8 +167,8 @@ class AuthService:
                 sub=payload["sub"],
                 email=payload["email"],
                 is_admin=payload["is_admin"],
-                exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
-                iat=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+                exp=datetime.fromtimestamp(payload["exp"], tz=UTC),
+                iat=datetime.fromtimestamp(payload["iat"], tz=UTC),
             )
 
         except jwt.ExpiredSignatureError as e:

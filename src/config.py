@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_hours: int = 24  # Token expiration in hours
 
+    # Conversation History
+    conversation_max_messages: int = 20  # Max messages to include in context
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -230,3 +230,172 @@ class OpenRouterProvider:
                 "An unexpected error occurred",
                 provider=self.PROVIDER_NAME,
             ) from e
+
+    async def complete_with_history(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        *,
+        model: str | None = None,
+    ) -> str:
+        """Generate a completion with conversation history.
+
+        Args:
+            system_prompt: The system message setting context/behavior.
+            messages: Conversation history as list of {"role": "user"|"assistant", "content": "..."}.
+            model: Optional model override.
+
+        Returns:
+            The generated completion text.
+
+        Raises:
+            LLMProviderError: If the completion fails.
+            LLMTimeoutError: If the request times out.
+            LLMRateLimitError: If rate limited.
+        """
+        model_to_use = model or self._default_model
+
+        try:
+            result: str = await self._complete_history_with_resilience(
+                system_prompt=system_prompt,
+                messages=messages,
+                model=model_to_use,
+            )
+            return result
+
+        except CircuitBreakerError as e:
+            logger.warning(
+                "circuit_breaker_open",
+                provider=self.PROVIDER_NAME,
+                model=model_to_use,
+            )
+            raise LLMProviderError(
+                "Service temporarily unavailable. Please try again in a moment.",
+                provider=self.PROVIDER_NAME,
+            ) from e
+
+        except APITimeoutError as e:
+            logger.warning(
+                "llm_timeout",
+                provider=self.PROVIDER_NAME,
+                model=model_to_use,
+                timeout_seconds=self._timeout,
+            )
+            raise LLMTimeoutError(
+                f"Request timed out after {self._timeout}s",
+                provider=self.PROVIDER_NAME,
+            ) from e
+
+        except APIConnectionError as e:
+            logger.error(
+                "llm_connection_error",
+                provider=self.PROVIDER_NAME,
+                model=model_to_use,
+                error=str(e),
+            )
+            raise LLMProviderError(
+                "Unable to connect to LLM service",
+                provider=self.PROVIDER_NAME,
+            ) from e
+
+    @retry(
+        retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, max=5),
+        reraise=True,
+    )
+    async def _complete_history_with_resilience(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        model: str,
+    ) -> str:
+        """Internal method with retry and circuit breaker logic for history completion."""
+        return await self._breaker.call_async(  # type: ignore[no-any-return]
+            self._do_complete_with_history, system_prompt, messages, model
+        )
+
+    async def _do_complete_with_history(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        model: str,
+    ) -> str:
+        """Execute the actual API call with conversation history."""
+        total_content_length = sum(len(m.get("content", "")) for m in messages)
+
+        logger.debug(
+            "llm_history_request_start",
+            provider=self.PROVIDER_NAME,
+            model=model,
+            message_count=len(messages),
+            total_content_length=total_content_length,
+        )
+
+        try:
+            # Build messages array with system prompt first
+            all_messages: list[dict[str, str]] = [
+                {"role": "system", "content": system_prompt}
+            ]
+            all_messages.extend(messages)
+
+            response = await self._client.chat.completions.create(
+                model=model,
+                messages=all_messages,  # type: ignore[arg-type]
+            )
+
+            content = response.choices[0].message.content or ""
+
+            logger.debug(
+                "llm_history_request_success",
+                provider=self.PROVIDER_NAME,
+                model=model,
+                message_count=len(messages),
+                response_length=len(content),
+            )
+
+            return content
+
+        except RateLimitError as e:
+            logger.warning(
+                "llm_rate_limited",
+                provider=self.PROVIDER_NAME,
+                model=model,
+            )
+            raise LLMRateLimitError(
+                "Rate limited by OpenRouter. Please try again shortly.",
+                provider=self.PROVIDER_NAME,
+            ) from e
+
+        except (APIConnectionError, APITimeoutError):
+            # Let these bubble up for retry logic
+            raise
+
+        except Exception as e:
+            # Check for context window overflow
+            error_str = str(e).lower()
+            if "context" in error_str and (
+                "length" in error_str or "limit" in error_str
+            ):
+                logger.warning(
+                    "llm_context_overflow",
+                    provider=self.PROVIDER_NAME,
+                    model=model,
+                    message_count=len(messages),
+                )
+                raise LLMProviderError(
+                    "Conversation is too long. Please start a new chat.",
+                    provider=self.PROVIDER_NAME,
+                ) from e
+
+            logger.error(
+                "llm_unexpected_error",
+                provider=self.PROVIDER_NAME,
+                model=model,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            raise LLMProviderError(
+                "An unexpected error occurred",
+                provider=self.PROVIDER_NAME,
+            ) from e

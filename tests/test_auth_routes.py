@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -45,7 +45,6 @@ async def auth_service(database: Database) -> AuthService:
 def test_app(auth_service: AuthService) -> TestClient:
     """Create a test client with the auth router."""
     from fastapi import FastAPI
-    from src.web.templates import templates
 
     app = FastAPI()
     app.include_router(router)
