@@ -260,7 +260,8 @@ async def ask(
                 else None,
             )
             answer = response.answer
-            chunks_used = response.chunks_used
+            # Filter to high/medium relevance (≥0.5) and limit to top 3 for cleaner UX
+            chunks_used = [c for c in response.chunks_used if c.score >= 0.5][:3]
         else:
             # Fall back to direct LLM (no RAG)
             logger.info("rag_not_available", message="Using direct LLM")

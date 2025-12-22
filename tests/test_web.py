@@ -9,8 +9,9 @@ from fastapi.testclient import TestClient
 
 from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.main import app
+from src.modules.rag.schemas import ChunkWithScore, RAGResponse
 from src.web.dependencies import require_auth
-from src.web.routes import MAX_QUESTION_LENGTH, get_llm_provider
+from src.web.routes import MAX_QUESTION_LENGTH, get_llm_provider, get_rag_service
 
 # Mock user for authenticated tests
 MOCK_USER = {
@@ -184,3 +185,174 @@ class TestRateLimiting:
                 break
 
         assert "Please wait" in response.text
+
+
+class TestChunkFiltering:
+    """Tests for citation chunk filtering in responses."""
+
+    @pytest.fixture(autouse=True)
+    def reset_rate_limiter(self) -> Generator[None, None, None]:
+        """Reset rate limiter before each test."""
+        from src.api.rate_limit import limiter
+
+        limiter.reset()
+        yield
+        app.dependency_overrides.clear()
+
+    def test_filters_to_high_medium_chunks_only(self, client: TestClient) -> None:
+        """Should only show chunks with score >= 0.5 (high/medium relevance)."""
+        # Create mock RAG service that returns chunks with mixed scores
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[
+                    ChunkWithScore(
+                        content="High relevance chunk",
+                        source="doc1.md",
+                        section="Section 1",
+                        score=0.85,
+                        title="Document 1",
+                    ),
+                    ChunkWithScore(
+                        content="Medium relevance chunk",
+                        source="doc2.md",
+                        section="Section 2",
+                        score=0.55,
+                        title="Document 2",
+                    ),
+                    ChunkWithScore(
+                        content="Low relevance chunk - should be filtered",
+                        source="doc3.md",
+                        section="Section 3",
+                        score=0.35,
+                        title="Document 3",
+                    ),
+                ],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show high and medium chunks
+        assert "High relevance chunk" in response.text
+        assert "Medium relevance chunk" in response.text
+        # Should NOT show low relevance chunk
+        assert "Low relevance chunk - should be filtered" not in response.text
+
+    def test_limits_to_maximum_three_chunks(self, client: TestClient) -> None:
+        """Should show maximum of 3 chunks even if more meet criteria."""
+        # Create mock RAG service that returns 5 high-quality chunks
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[
+                    ChunkWithScore(
+                        content=f"Chunk {i}",
+                        source=f"doc{i}.md",
+                        section=f"Section {i}",
+                        score=0.9 - (i * 0.05),  # 0.9, 0.85, 0.8, 0.75, 0.7
+                        title=f"Document {i}",
+                    )
+                    for i in range(1, 6)
+                ],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show top 3 chunks
+        assert "Chunk 1" in response.text
+        assert "Chunk 2" in response.text
+        assert "Chunk 3" in response.text
+        # Should NOT show chunks 4 and 5
+        assert "Chunk 4" not in response.text
+        assert "Chunk 5" not in response.text
+
+    def test_shows_fewer_than_three_when_available(self, client: TestClient) -> None:
+        """Should show whatever high/medium chunks exist, even if fewer than 3."""
+        # Create mock RAG service with only 1 high-quality chunk
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[
+                    ChunkWithScore(
+                        content="Only high quality chunk",
+                        source="doc1.md",
+                        section="Section 1",
+                        score=0.85,
+                        title="Document 1",
+                    ),
+                    ChunkWithScore(
+                        content="Low chunk 1",
+                        source="doc2.md",
+                        section="Section 2",
+                        score=0.35,
+                        title="Document 2",
+                    ),
+                    ChunkWithScore(
+                        content="Low chunk 2",
+                        source="doc3.md",
+                        section="Section 3",
+                        score=0.25,
+                        title="Document 3",
+                    ),
+                ],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show the 1 high-quality chunk
+        assert "Only high quality chunk" in response.text
+        # Should NOT show low-quality chunks
+        assert "Low chunk 1" not in response.text
+        assert "Low chunk 2" not in response.text
+
+    def test_shows_no_chunks_when_all_low_quality(self, client: TestClient) -> None:
+        """Should show no sources section when all chunks are low quality."""
+        # Create mock RAG service with only low-quality chunks
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[
+                    ChunkWithScore(
+                        content="Low chunk",
+                        source="doc1.md",
+                        section="Section 1",
+                        score=0.3,
+                        title="Document 1",
+                    ),
+                ],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show the answer
+        assert "Test answer" in response.text
+        # Should NOT show sources section (no chunks meet threshold)
+        assert "Sources" not in response.text
