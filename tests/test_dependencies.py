@@ -1,19 +1,20 @@
 """Tests for web dependencies (authentication and authorization)."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.exceptions import HTTPException
 
+from src.config import Settings
 from src.web.dependencies import (
     AuthenticationRequired,
-    get_current_user,
-    require_auth,
-    require_admin,
     auth_exception_handler,
+    get_current_user,
+    require_admin,
+    require_auth,
 )
-from src.config import Settings
 
 
 class TestAuthenticationRequired:
@@ -29,13 +30,10 @@ class TestAuthenticationRequired:
 class TestGetCurrentUser:
     """Tests for get_current_user dependency."""
 
-    @patch('src.web.dependencies.get_current_user_from_cookie')
+    @patch("src.web.dependencies.get_current_user_from_cookie")
     def test_get_current_user_returns_user_dict_when_authenticated(self, mock_get_user):
         """Test get_current_user returns user dict from cookie."""
-        mock_get_user.return_value = {
-            "user_id": "test-id",
-            "email": "test@example.com"
-        }
+        mock_get_user.return_value = {"user_id": "test-id", "email": "test@example.com"}
         request = Mock(spec=Request)
 
         result = get_current_user(request)
@@ -44,7 +42,7 @@ class TestGetCurrentUser:
         assert result["user_id"] == "test-id"
         mock_get_user.assert_called_once_with(request)
 
-    @patch('src.web.dependencies.get_current_user_from_cookie')
+    @patch("src.web.dependencies.get_current_user_from_cookie")
     def test_get_current_user_returns_none_when_not_authenticated(self, mock_get_user):
         """Test get_current_user returns None when no session cookie."""
         mock_get_user.return_value = None
@@ -77,13 +75,13 @@ class TestRequireAuth:
 
         assert result is None
 
-    @patch('src.web.dependencies.get_current_user_from_cookie')
+    @patch("src.web.dependencies.get_current_user_from_cookie")
     def test_require_auth_returns_user_when_authenticated(self, mock_get_user):
         """Test require_auth returns user dict when authenticated."""
         mock_get_user.return_value = {
             "user_id": "test-id",
             "email": "test@example.com",
-            "is_admin": False
+            "is_admin": False,
         }
         request = Mock(spec=Request)
         settings = Settings(auth_enabled=True, jwt_secret_key="secret-key-123")
@@ -94,7 +92,7 @@ class TestRequireAuth:
         assert result["user_id"] == "test-id"
         mock_get_user.assert_called_once_with(request)
 
-    @patch('src.web.dependencies.get_current_user_from_cookie')
+    @patch("src.web.dependencies.get_current_user_from_cookie")
     def test_require_auth_raises_when_not_authenticated(self, mock_get_user):
         """Test require_auth raises AuthenticationRequired when not authenticated."""
         mock_get_user.return_value = None
@@ -116,11 +114,7 @@ class TestRequireAdmin:
 
     def test_require_admin_returns_user_when_user_is_admin(self):
         """Test require_admin returns user dict when user is admin."""
-        user = {
-            "user_id": "admin-id",
-            "email": "admin@example.com",
-            "is_admin": True
-        }
+        user = {"user_id": "admin-id", "email": "admin@example.com", "is_admin": True}
 
         result = require_admin(user=user)
 
@@ -130,11 +124,7 @@ class TestRequireAdmin:
 
     def test_require_admin_raises_403_when_user_is_not_admin(self):
         """Test require_admin raises 403 when user is not admin."""
-        user = {
-            "user_id": "user-id",
-            "email": "user@example.com",
-            "is_admin": False
-        }
+        user = {"user_id": "user-id", "email": "user@example.com", "is_admin": False}
 
         with pytest.raises(HTTPException) as exc_info:
             require_admin(user=user)

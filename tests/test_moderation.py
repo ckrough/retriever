@@ -1,10 +1,11 @@
 """Tests for content moderation using OpenAI Moderation API."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock
-import httpx
 
-from src.infrastructure.safety.moderation import OpenAIModerator, NoOpModerator
+import httpx
+import pytest
+
+from src.infrastructure.safety.moderation import NoOpModerator, OpenAIModerator
 from src.infrastructure.safety.schemas import ModerationResult
 
 
@@ -34,11 +35,13 @@ class TestOpenAIModeratorCheck:
         # Mock the HTTP client
         mock_response = Mock()
         mock_response.json.return_value = {
-            "results": [{
-                "flagged": False,
-                "categories": {"hate": False, "violence": False},
-                "category_scores": {"hate": 0.1, "violence": 0.05}
-            }]
+            "results": [
+                {
+                    "flagged": False,
+                    "categories": {"hate": False, "violence": False},
+                    "category_scores": {"hate": 0.1, "violence": 0.05},
+                }
+            ]
         }
         moderator._client.post = AsyncMock(return_value=mock_response)
 
@@ -58,11 +61,13 @@ class TestOpenAIModeratorCheck:
         # Mock the HTTP client
         mock_response = Mock()
         mock_response.json.return_value = {
-            "results": [{
-                "flagged": True,
-                "categories": {"hate": True, "violence": False},
-                "category_scores": {"hate": 0.9, "violence": 0.1}
-            }]
+            "results": [
+                {
+                    "flagged": True,
+                    "categories": {"hate": True, "violence": False},
+                    "category_scores": {"hate": 0.9, "violence": 0.1},
+                }
+            ]
         }
         moderator._client.post = AsyncMock(return_value=mock_response)
 
@@ -80,7 +85,9 @@ class TestOpenAIModeratorCheck:
         moderator = OpenAIModerator(api_key="test-key")
 
         # Mock timeout exception
-        moderator._client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        moderator._client.post = AsyncMock(
+            side_effect=httpx.TimeoutException("Timeout")
+        )
 
         result = await moderator.check("Some text")
 
@@ -100,9 +107,7 @@ class TestOpenAIModeratorCheck:
         mock_response = Mock()
         mock_response.status_code = 500
         error = httpx.HTTPStatusError(
-            "Server error",
-            request=Mock(),
-            response=mock_response
+            "Server error", request=Mock(), response=mock_response
         )
         moderator._client.post = AsyncMock(side_effect=error)
 
