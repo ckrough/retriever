@@ -1,0 +1,39 @@
+services:
+  retriever:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: retriever
+
+    ports:
+      - "8000:8000"
+
+    # Load environment variables from .env file
+    # Create .env file from .env.example and set your API keys
+    env_file:
+      - .env
+
+    # Named volumes for data persistence
+    # Data survives container restarts and rebuilds
+    volumes:
+      - retriever-data:/app/data
+      - retriever-documents:/app/documents
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # Restart policy
+    restart: unless-stopped
+
+# Named volumes for persistent data
+volumes:
+  retriever-data:
+    driver: local
+  retriever-documents:
+    driver: local

@@ -29,7 +29,7 @@ Need a modern, maintainable tech stack for building a RAG-based Q&A application 
 ## Decision
 
 **Backend:**
-- Python 3.12+
+- Python 3.13+
 - FastAPI (web framework)
 - Pydantic 2.x (validation and settings)
 - uvicorn (ASGI server)

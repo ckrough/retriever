@@ -60,7 +60,7 @@ Need consistent development environment across contributors. Requirements:
   "name": "Retriever Dev",
   "build": { "dockerfile": "Dockerfile" },
   "features": {
-    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.13" }
   },
   "postCreateCommand": "pip install -e '.[dev]'",
   "customizations": {
@@ -81,7 +81,7 @@ Need consistent development environment across contributors. Requirements:
 If you prefer local setup:
 
 ```bash
-# Requires Python 3.12+
+# Requires Python 3.13+
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'

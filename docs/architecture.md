@@ -54,7 +54,7 @@ Single deployable unit with clean module boundaries. See [ADR-003](decisions/003
 
 ## Tech Stack
 
-### Backend (Python 3.12+)
+### Backend (Python 3.13+)
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|

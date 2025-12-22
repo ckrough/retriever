@@ -36,7 +36,7 @@ Retriever can be adapted for any organization with documentation that users need
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.13+
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 - API keys for:
   - [OpenRouter](https://openrouter.ai/keys) (for LLM access)
@@ -146,30 +146,113 @@ For best results:
 
 Retriever can be deployed to any platform that supports Python applications.
 
+### Docker
+
+**Prerequisites:**
+- Docker and docker-compose compatible container tool installed
+- `.env` file configured with your API keys
+
+**Build and run:**
+
+```bash
+# Build the production image
+docker build -t retriever:latest .
+
+# Run with docker-compose (recommended)
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f retriever
+
+# Check health
+curl http://localhost:8000/health
+```
+
+**Alternative: Run with docker directly**
+
+```bash
+docker run -d \
+  --name retriever \
+  -p 8000:8000 \
+  --env-file .env \
+  -v retriever-data:/app/data \
+  -v retriever-documents:/app/documents \
+  retriever:latest
+```
+
+**Create a user:**
+
+The database is inside the container, so you need to execute the script within the running container:
+
+```bash
+# Using docker-compose (recommended)
+docker-compose exec retriever uv run python scripts/create_user.py
+
+# Or using docker directly
+docker exec -it retriever uv run python scripts/create_user.py
+```
+
+**Volume Management:**
+
+```bash
+# List volumes
+docker volume ls
+
+# Backup data
+docker run --rm \
+  -v retriever-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/retriever-data-backup.tar.gz /data
+
+# Restore data
+docker run --rm \
+  -v retriever-data:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/retriever-data-backup.tar.gz -C /
+
+# Stop containers (preserves volumes)
+docker-compose down
+
+# Stop and DELETE volumes (CAUTION: destroys all data)
+docker-compose down -v
+```
+
+**Troubleshooting:**
+
+| Issue | Solution |
+|-------|----------|
+| Port 8000 already in use | Change port: `docker run -p 8001:8000 ...` |
+| Health check failing | Check logs: `docker-compose logs retriever` |
+| Cannot write to `/app/data` | Verify container runs as `appuser` (uid 1000) |
+| Missing environment variables | Ensure `.env` file exists with all required keys |
+| Old code running after changes | Rebuild image: `docker-compose build --no-cache` |
+
+**Environment Variables:**
+
+See `.env.example` for the complete list. Required:
+- `OPENROUTER_API_KEY` — OpenRouter API key
+- `OPENAI_API_KEY` — OpenAI API key
+- `JWT_SECRET_KEY` — Generate with `openssl rand -base64 32`
+
+**What gets persisted:**
+- `retriever-data` volume → SQLite database + Chroma vector store
+- `retriever-documents` volume → Uploaded policy documents
+
 ### Railway / Render
 
 1. Connect your repository
 2. Set environment variables in the dashboard
 3. Deploy
 
-### Docker
-
-```dockerfile
-# Dockerfile example
-FROM python:3.12-slim
-WORKDIR /app
-COPY . .
-RUN pip install uv && uv sync
-CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
 ### Production Checklist
 
 - [ ] Set `DEBUG=false`
-- [ ] Use a strong `JWT_SECRET_KEY`
-- [ ] Configure rate limiting appropriately
+- [ ] Use a strong `JWT_SECRET_KEY` (32+ characters, random)
+- [ ] Configure rate limiting appropriately for your traffic
 - [ ] Set up monitoring (Sentry DSN in `SENTRY_DSN`)
-- [ ] Use persistent storage for `data/` directory
+- [ ] Use persistent storage for `data/` directory (volumes in Docker, mounted storage on cloud platforms)
+- [ ] Test the Docker image locally before cloud deployment
+- [ ] Enable HTTPS in production (handled by Cloud Run, Railway, Render)
 
 ## Architecture
 
@@ -188,7 +271,7 @@ Retriever uses a modular monolith architecture with clean separation of concerns
 ```
 
 **Tech Stack:**
-- **Backend:** Python 3.12+, FastAPI, Pydantic
+- **Backend:** Python 3.13+, FastAPI, Pydantic
 - **LLM:** Claude via OpenRouter
 - **Vector DB:** Chroma (embedded)
 - **Frontend:** Jinja2 + HTMX + Tailwind CSS
