@@ -383,6 +383,62 @@ Agile vertical slices - each increment delivers a working, visible feature.
 
 ---
 
+## Increment 14: Docker Container Build
+
+**Goal:** Build and test production Docker image locally.
+
+**Deliverable:** Production-ready Docker image that can be tested locally before Cloud Run deployment.
+
+**What you'll see:**
+- Build production image: `docker build -t retriever .`
+- Run containerized app: `docker-compose up`
+- Test production build locally before cloud deployment
+- Data persists in volumes across container restarts
+
+**Development workflow:**
+- Active development: Git worktree on host with `uv run uvicorn --reload`
+- Docker testing: Test production build locally before pushing to cloud
+
+**Build:**
+- [ ] Production-ready multi-stage Dockerfile
+- [ ] .dockerignore for build optimization
+- [ ] docker-compose.yml for container management
+- [ ] README.md Docker deployment section
+- [ ] Environment variables documented
+- [ ] Volume management documentation
+
+**Validates:** Production container build, local testing workflow, Cloud Run readiness
+
+**Status:** 🚧 In Planning
+
+---
+
+## Increment 15: Cloud Run Deployment
+
+**Goal:** Deploy to Google Cloud Run with managed infrastructure.
+
+**Deliverable:** Production deployment on Cloud Run with auto-scaling.
+
+**What you'll see:**
+- App running on Cloud Run with custom domain
+- Automatic scaling based on traffic
+- Managed SSL certificates
+- Centralized logging and monitoring
+
+**Build:**
+- [ ] Cloud Run deployment configuration
+- [ ] GCS-backed volume mounting for data persistence
+- [ ] Secret Manager integration for API keys
+- [ ] GitHub Actions CI/CD pipeline
+- [ ] Cloud Monitoring dashboards
+- [ ] Deployment documentation
+
+**Validates:** Cloud-native deployment, auto-scaling, production resilience
+
+**Status:** ⏸️ Future (after Increment 14)
+
+---
+
 ## Future: Production Hardening
 
 See [implementation-plan.md](implementation-plan.md#future-production-hardening-post-validation) for operational excellence items deferred until product validation.

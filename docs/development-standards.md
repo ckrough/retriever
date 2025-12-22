@@ -69,6 +69,38 @@ mypy src/ --strict && \
 pytest --cov=src --cov-fail-under=80
 ```
 
+## Docker Testing
+
+Test the production Docker build locally before deploying:
+
+```bash
+# Build production image
+docker build -t retriever:latest .
+
+# Run with docker-compose
+docker-compose up -d
+
+# Verify health
+curl http://localhost:8000/health
+
+# Run functional tests against Docker container
+docker-compose exec retriever uv run pytest
+
+# View logs
+docker-compose logs -f retriever
+
+# Stop
+docker-compose down
+```
+
+**When to test with Docker:**
+- Before deploying to production
+- To verify the production build works
+- To test volume persistence
+- To validate environment variable configuration
+
+**Development workflow:** Use `uv run uvicorn --reload` on the host for faster iteration. Docker is for production testing only.
+
 ## Type Hints
 
 **Required** on all function signatures, including return types.

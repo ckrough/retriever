@@ -7,7 +7,7 @@ name = "retriever"
 version = "0.1.0"
 description = "AI-powered Q&A system for documents"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 license = "MIT"
 authors = [{ name = "Chris Krough" }]
 
@@ -64,7 +64,7 @@ dev = [
 packages = ["src"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py313"
 line-length = 88
 src = ["src", "tests"]
 
@@ -92,7 +92,7 @@ ignore = [
 known-first-party = ["src"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true

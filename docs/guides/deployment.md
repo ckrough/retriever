@@ -2,16 +2,99 @@
 
 How to deploy Retriever to production.
 
-## Recommended Platforms
+## Deployment Options
 
-| Platform | Free Tier | Notes |
-|----------|-----------|-------|
-| Railway | 500 hours/month | Simple, good DX |
-| Render | 750 hours/month | Easy setup |
+| Platform | Free Tier | Notes | Recommended For |
+|----------|-----------|-------|-----------------|
+| **Docker** | N/A | Full control, portable | Testing production build locally |
+| Railway | 500 hours/month | Simple, good DX | Quick MVP deployment |
+| Render | 750 hours/month | Easy setup | Quick MVP deployment |
+| Google Cloud Run | Free tier available | Serverless, auto-scaling | Production scale |
 
-Both work well for this application. Choose based on preference.
+Choose based on your needs:
+- **Docker** (local): Test production build before deploying
+- **Railway/Render**: Quick MVP deployment with minimal setup
+- **Cloud Run**: Production-ready with auto-scaling (requires Docker setup)
 
-## Prerequisites
+## Docker Deployment
+
+Docker provides a production-ready containerized environment that can run locally or be deployed to any cloud platform.
+
+### Prerequisites
+
+- Docker and docker-compose installed
+- `.env` file with all required API keys
+
+### Quick Start
+
+```bash
+# Build the production image
+docker build -t retriever:latest .
+
+# Run with docker-compose (recommended)
+docker-compose up -d
+
+# Check health
+curl http://localhost:8000/health
+
+# View logs
+docker-compose logs -f retriever
+
+# Create a user
+docker-compose exec retriever uv run python scripts/create_user.py
+```
+
+### Configuration
+
+All configuration via environment variables. Create a `.env` file:
+
+```bash
+# Required
+OPENROUTER_API_KEY=your-openrouter-key
+OPENAI_API_KEY=your-openai-key
+JWT_SECRET_KEY=generate-random-secret-32-chars
+
+# Optional (defaults shown)
+DEBUG=false
+PORT=8000
+DATABASE_PATH=/app/data/retriever.db
+CHROMA_PERSIST_PATH=/app/data/chroma
+```
+
+### Data Persistence
+
+Docker uses named volumes for persistent data:
+
+- `retriever-data` → SQLite database + Chroma vector store
+- `retriever-documents` → Uploaded policy documents
+
+**Backup data:**
+
+```bash
+docker run --rm \
+  -v retriever-data:/app/data \
+  -v $(pwd):/backup \
+  retriever:latest tar czf /backup/retriever-data-backup.tar.gz /app/data
+```
+
+**Restore data:**
+
+```bash
+docker run --rm \
+  -v retriever-data:/app/data \
+  -v $(pwd):/backup \
+  retriever:latest tar xzf /backup/retriever-data-backup.tar.gz -C /
+```
+
+### Deploying to Cloud Run
+
+See [README.md](../../README.md#deployment) for detailed Cloud Run deployment instructions.
+
+---
+
+## Railway / Render Deployment
+
+### Prerequisites
 
 1. GitHub repository with code
 2. Platform account (Railway or Render)

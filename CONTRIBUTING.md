@@ -15,7 +15,7 @@ Get up and running in 5 minutes:
 git clone https://github.com/YOUR-USERNAME/retriever.git
 cd retriever
 
-# Install dependencies (requires Python 3.12+)
+# Install dependencies (requires Python 3.13+)
 uv sync --extra dev
 
 # Copy environment template and add your API keys
@@ -32,7 +32,7 @@ uv run pytest
 
 ### Requirements
 
-- **Python 3.12+** — We use modern Python features
+- **Python 3.13+** — We use modern Python features
 - **[uv](https://docs.astral.sh/uv/)** — Fast Python package manager (recommended over pip)
 - **API Keys** — OpenRouter (for LLM) and OpenAI (for embeddings/moderation)
 
@@ -52,6 +52,29 @@ uv run pytest
    ```
 
 Visit [http://localhost:8000](http://localhost:8000) to see the app running.
+
+### Docker Development (Optional)
+
+If you prefer Docker for development:
+
+```bash
+# Build the image
+docker build -t retriever:latest .
+
+# Run with docker-compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f retriever
+
+# Create a user (inside container)
+docker-compose exec retriever uv run python scripts/create_user.py
+
+# Stop
+docker-compose down
+```
+
+**Note:** Active development is typically done on the host with `uv run uvicorn --reload` for faster iteration. Docker is mainly for testing the production build locally.
 
 ### Understanding the Codebase
 
@@ -312,7 +335,7 @@ Before submitting, ensure:
 ### Setup Issues?
 
 - Verify `.env` has all required API keys (check `.env.example`)
-- Make sure you're using Python 3.12+
+- Make sure you're using Python 3.13+
 - Try `uv sync --extra dev` to reinstall dependencies
 - Check the [README](README.md) configuration section
 

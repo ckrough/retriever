@@ -11,7 +11,7 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 **Architecture:** Modular monolith with clean architecture principles (see [Documentation Index](#documentation-index) for targeted docs)
 
 **Tech Stack:**
-- Python 3.12+, FastAPI, Pydantic 2.x
+- Python 3.13+, FastAPI, Pydantic 2.x
 - LLM: OpenRouter (Claude via OpenAI-compatible API)
 - Vector DB: Chroma (embedded)
 - Frontend: Jinja2 + HTMX + Tailwind CSS
