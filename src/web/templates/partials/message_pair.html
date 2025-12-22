@@ -22,6 +22,7 @@
             <p class="text-xs text-gray-500 mb-2 font-medium">Sources ({{ chunks_used|length }})</p>
             <div class="space-y-2">
                 {% for chunk in chunks_used %}
+                {% set rank = loop.index %}
                 {% include "partials/citation_card.html" %}
                 {% endfor %}
             </div>

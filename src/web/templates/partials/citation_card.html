@@ -15,18 +15,14 @@
             {% endif %}
         </div>
 
-        <!-- Relevance indicator -->
-        {% if chunk.score >= 0.7 %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" title="High relevance">
+        <!-- Relevance indicator (rank-based: only High/Med shown) -->
+        {% if rank == 1 %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" title="Most relevant">
             High
         </span>
-        {% elif chunk.score >= 0.5 %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="Medium relevance">
-            Med
-        </span>
         {% else %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600" title="Lower relevance">
-            Low
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="Moderately relevant">
+            Med
         </span>
         {% endif %}
     </summary>

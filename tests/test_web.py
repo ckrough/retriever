@@ -188,7 +188,7 @@ class TestRateLimiting:
 
 
 class TestChunkFiltering:
-    """Tests for citation chunk filtering in responses."""
+    """Tests for citation chunk limiting in responses."""
 
     @pytest.fixture(autouse=True)
     def reset_rate_limiter(self) -> Generator[None, None, None]:
@@ -199,9 +199,9 @@ class TestChunkFiltering:
         yield
         app.dependency_overrides.clear()
 
-    def test_filters_to_high_medium_chunks_only(self, client: TestClient) -> None:
-        """Should only show chunks with score >= 0.5 (high/medium relevance)."""
-        # Create mock RAG service that returns chunks with mixed scores
+    def test_shows_top_two_chunks(self, client: TestClient) -> None:
+        """Should show top 2 chunks (High/Med) from the result set."""
+        # Create mock RAG service that returns chunks (sorted by relevance)
         mock_rag = AsyncMock()
         mock_rag.ask = AsyncMock(
             return_value=RAGResponse(
@@ -209,24 +209,24 @@ class TestChunkFiltering:
                 question="Test question",
                 chunks_used=[
                     ChunkWithScore(
-                        content="High relevance chunk",
+                        content="First chunk",
                         source="doc1.md",
                         section="Section 1",
-                        score=0.85,
+                        score=0.020,  # RRF scores are small
                         title="Document 1",
                     ),
                     ChunkWithScore(
-                        content="Medium relevance chunk",
+                        content="Second chunk",
                         source="doc2.md",
                         section="Section 2",
-                        score=0.55,
+                        score=0.015,
                         title="Document 2",
                     ),
                     ChunkWithScore(
-                        content="Low relevance chunk - should be filtered",
+                        content="Third chunk - should not show",
                         source="doc3.md",
                         section="Section 3",
-                        score=0.35,
+                        score=0.010,
                         title="Document 3",
                     ),
                 ],
@@ -239,15 +239,15 @@ class TestChunkFiltering:
         response = client.post("/ask", data={"question": "Test question"})
 
         assert response.status_code == 200
-        # Should show high and medium chunks
-        assert "High relevance chunk" in response.text
-        assert "Medium relevance chunk" in response.text
-        # Should NOT show low relevance chunk
-        assert "Low relevance chunk - should be filtered" not in response.text
+        # Should show top 2 chunks only (High/Med)
+        assert "First chunk" in response.text
+        assert "Second chunk" in response.text
+        # Should NOT show third chunk (would be Low)
+        assert "Third chunk - should not show" not in response.text
 
-    def test_limits_to_maximum_three_chunks(self, client: TestClient) -> None:
-        """Should show maximum of 3 chunks even if more meet criteria."""
-        # Create mock RAG service that returns 5 high-quality chunks
+    def test_limits_to_maximum_two_chunks(self, client: TestClient) -> None:
+        """Should show maximum of 2 chunks (High/Med) even if more are available."""
+        # Create mock RAG service that returns 5 chunks
         mock_rag = AsyncMock()
         mock_rag.ask = AsyncMock(
             return_value=RAGResponse(
@@ -258,7 +258,7 @@ class TestChunkFiltering:
                         content=f"Chunk {i}",
                         source=f"doc{i}.md",
                         section=f"Section {i}",
-                        score=0.9 - (i * 0.05),  # 0.9, 0.85, 0.8, 0.75, 0.7
+                        score=0.020 - (i * 0.002),  # Decreasing RRF scores
                         title=f"Document {i}",
                     )
                     for i in range(1, 6)
@@ -272,17 +272,17 @@ class TestChunkFiltering:
         response = client.post("/ask", data={"question": "Test question"})
 
         assert response.status_code == 200
-        # Should show top 3 chunks
+        # Should show top 2 chunks only
         assert "Chunk 1" in response.text
         assert "Chunk 2" in response.text
-        assert "Chunk 3" in response.text
-        # Should NOT show chunks 4 and 5
+        # Should NOT show chunks 3, 4, and 5
+        assert "Chunk 3" not in response.text
         assert "Chunk 4" not in response.text
         assert "Chunk 5" not in response.text
 
-    def test_shows_fewer_than_three_when_available(self, client: TestClient) -> None:
-        """Should show whatever high/medium chunks exist, even if fewer than 3."""
-        # Create mock RAG service with only 1 high-quality chunk
+    def test_shows_one_chunk_when_only_one_available(self, client: TestClient) -> None:
+        """Should show 1 chunk (High badge) when only 1 is available."""
+        # Create mock RAG service with only 1 chunk
         mock_rag = AsyncMock()
         mock_rag.ask = AsyncMock(
             return_value=RAGResponse(
@@ -290,25 +290,11 @@ class TestChunkFiltering:
                 question="Test question",
                 chunks_used=[
                     ChunkWithScore(
-                        content="Only high quality chunk",
+                        content="Only one chunk",
                         source="doc1.md",
                         section="Section 1",
-                        score=0.85,
+                        score=0.018,
                         title="Document 1",
-                    ),
-                    ChunkWithScore(
-                        content="Low chunk 1",
-                        source="doc2.md",
-                        section="Section 2",
-                        score=0.35,
-                        title="Document 2",
-                    ),
-                    ChunkWithScore(
-                        content="Low chunk 2",
-                        source="doc3.md",
-                        section="Section 3",
-                        score=0.25,
-                        title="Document 3",
                     ),
                 ],
             )
@@ -320,29 +306,18 @@ class TestChunkFiltering:
         response = client.post("/ask", data={"question": "Test question"})
 
         assert response.status_code == 200
-        # Should show the 1 high-quality chunk
-        assert "Only high quality chunk" in response.text
-        # Should NOT show low-quality chunks
-        assert "Low chunk 1" not in response.text
-        assert "Low chunk 2" not in response.text
+        # Should show the single chunk
+        assert "Only one chunk" in response.text
 
-    def test_shows_no_chunks_when_all_low_quality(self, client: TestClient) -> None:
-        """Should show no sources section when all chunks are low quality."""
-        # Create mock RAG service with only low-quality chunks
+    def test_shows_no_chunks_when_none_available(self, client: TestClient) -> None:
+        """Should show no sources section when no chunks are available."""
+        # Create mock RAG service with no chunks (fallback mode)
         mock_rag = AsyncMock()
         mock_rag.ask = AsyncMock(
             return_value=RAGResponse(
                 answer="Test answer",
                 question="Test question",
-                chunks_used=[
-                    ChunkWithScore(
-                        content="Low chunk",
-                        source="doc1.md",
-                        section="Section 1",
-                        score=0.3,
-                        title="Document 1",
-                    ),
-                ],
+                chunks_used=[],
             )
         )
 
@@ -354,5 +329,5 @@ class TestChunkFiltering:
         assert response.status_code == 200
         # Should show the answer
         assert "Test answer" in response.text
-        # Should NOT show sources section (no chunks meet threshold)
+        # Should NOT show sources section (no chunks available)
         assert "Sources" not in response.text
