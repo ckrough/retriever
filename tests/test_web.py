@@ -9,8 +9,9 @@ from fastapi.testclient import TestClient
 
 from src.infrastructure.llm import LLMProviderError, OpenRouterProvider
 from src.main import app
+from src.modules.rag.schemas import ChunkWithScore, RAGResponse
 from src.web.dependencies import require_auth
-from src.web.routes import MAX_QUESTION_LENGTH, get_llm_provider
+from src.web.routes import MAX_QUESTION_LENGTH, get_llm_provider, get_rag_service
 
 # Mock user for authenticated tests
 MOCK_USER = {
@@ -184,3 +185,149 @@ class TestRateLimiting:
                 break
 
         assert "Please wait" in response.text
+
+
+class TestChunkFiltering:
+    """Tests for citation chunk limiting in responses."""
+
+    @pytest.fixture(autouse=True)
+    def reset_rate_limiter(self) -> Generator[None, None, None]:
+        """Reset rate limiter before each test."""
+        from src.api.rate_limit import limiter
+
+        limiter.reset()
+        yield
+        app.dependency_overrides.clear()
+
+    def test_shows_top_two_chunks(self, client: TestClient) -> None:
+        """Should show top 2 chunks (High/Med) from the result set."""
+        # Create mock RAG service that returns chunks (sorted by relevance)
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[
+                    ChunkWithScore(
+                        content="First chunk",
+                        source="doc1.md",
+                        section="Section 1",
+                        score=0.020,  # RRF scores are small
+                        title="Document 1",
+                    ),
+                    ChunkWithScore(
+                        content="Second chunk",
+                        source="doc2.md",
+                        section="Section 2",
+                        score=0.015,
+                        title="Document 2",
+                    ),
+                    ChunkWithScore(
+                        content="Third chunk - should not show",
+                        source="doc3.md",
+                        section="Section 3",
+                        score=0.010,
+                        title="Document 3",
+                    ),
+                ],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show top 2 chunks only (High/Med)
+        assert "First chunk" in response.text
+        assert "Second chunk" in response.text
+        # Should NOT show third chunk (would be Low)
+        assert "Third chunk - should not show" not in response.text
+
+    def test_limits_to_maximum_two_chunks(self, client: TestClient) -> None:
+        """Should show maximum of 2 chunks (High/Med) even if more are available."""
+        # Create mock RAG service that returns 5 chunks
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[
+                    ChunkWithScore(
+                        content=f"Chunk {i}",
+                        source=f"doc{i}.md",
+                        section=f"Section {i}",
+                        score=0.020 - (i * 0.002),  # Decreasing RRF scores
+                        title=f"Document {i}",
+                    )
+                    for i in range(1, 6)
+                ],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show top 2 chunks only
+        assert "Chunk 1" in response.text
+        assert "Chunk 2" in response.text
+        # Should NOT show chunks 3, 4, and 5
+        assert "Chunk 3" not in response.text
+        assert "Chunk 4" not in response.text
+        assert "Chunk 5" not in response.text
+
+    def test_shows_one_chunk_when_only_one_available(self, client: TestClient) -> None:
+        """Should show 1 chunk (High badge) when only 1 is available."""
+        # Create mock RAG service with only 1 chunk
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[
+                    ChunkWithScore(
+                        content="Only one chunk",
+                        source="doc1.md",
+                        section="Section 1",
+                        score=0.018,
+                        title="Document 1",
+                    ),
+                ],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show the single chunk
+        assert "Only one chunk" in response.text
+
+    def test_shows_no_chunks_when_none_available(self, client: TestClient) -> None:
+        """Should show no sources section when no chunks are available."""
+        # Create mock RAG service with no chunks (fallback mode)
+        mock_rag = AsyncMock()
+        mock_rag.ask = AsyncMock(
+            return_value=RAGResponse(
+                answer="Test answer",
+                question="Test question",
+                chunks_used=[],
+            )
+        )
+
+        app.dependency_overrides[get_rag_service] = lambda: mock_rag
+        app.dependency_overrides[get_llm_provider] = lambda: AsyncMock()
+
+        response = client.post("/ask", data={"question": "Test question"})
+
+        assert response.status_code == 200
+        # Should show the answer
+        assert "Test answer" in response.text
+        # Should NOT show sources section (no chunks available)
+        assert "Sources" not in response.text
