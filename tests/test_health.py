@@ -1,8 +1,9 @@
 """Tests for health check endpoint."""
 
+from fastapi.testclient import TestClient
+
 from src.config import get_settings
 from src.main import app
-from fastapi.testclient import TestClient
 
 
 def test_health_check_returns_healthy() -> None:
