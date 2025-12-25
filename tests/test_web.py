@@ -22,7 +22,7 @@ MOCK_USER = {
 
 
 @pytest.fixture
-def client() -> Generator[TestClient, None, None]:
+def client() -> Generator[TestClient]:
     """Create test client fixture with mocked authentication."""
     # Clear any existing overrides
     app.dependency_overrides.clear()
@@ -49,7 +49,7 @@ class TestAskEndpointValidation:
     """Tests for ask endpoint input validation."""
 
     @pytest.fixture(autouse=True)
-    def use_fallback_llm(self) -> Generator[None, None, None]:
+    def use_fallback_llm(self) -> Generator[None]:
         """Use fallback LLM for all validation tests (faster)."""
         app.dependency_overrides[get_llm_provider] = lambda: None
         yield
@@ -150,7 +150,7 @@ class TestRateLimiting:
     """
 
     @pytest.fixture
-    def fresh_rate_limit_client(self) -> Generator[TestClient, None, None]:
+    def fresh_rate_limit_client(self) -> Generator[TestClient]:
         """Client with fresh rate limit storage."""
         from src.api.rate_limit import limiter
 
@@ -191,7 +191,7 @@ class TestChunkFiltering:
     """Tests for citation chunk limiting in responses."""
 
     @pytest.fixture(autouse=True)
-    def reset_rate_limiter(self) -> Generator[None, None, None]:
+    def reset_rate_limiter(self) -> Generator[None]:
         """Reset rate limiter before each test."""
         from src.api.rate_limit import limiter
 

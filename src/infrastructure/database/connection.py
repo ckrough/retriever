@@ -79,7 +79,7 @@ class Database:
             logger.info("database_disconnected", path=str(self._db_path))
 
     @asynccontextmanager
-    async def transaction(self) -> AsyncGenerator[aiosqlite.Connection, None]:
+    async def transaction(self) -> AsyncGenerator[aiosqlite.Connection]:
         """Context manager for database transactions.
 
         Yields:
