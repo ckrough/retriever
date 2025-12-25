@@ -31,7 +31,7 @@ _database: Database | None = None
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan handler for startup/shutdown."""
     global _database
 
