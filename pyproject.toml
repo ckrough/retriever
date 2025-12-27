@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "retriever"
-version = "1.0.0"
+version = "1.1.0"
 description = "AI-powered Q&A system for documents"
 readme = "README.md"
 requires-python = ">=3.13"
