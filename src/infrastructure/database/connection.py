@@ -35,6 +35,24 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_user_created ON messages(user_id, created_at);
+
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    filename TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    file_path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    file_size_bytes INTEGER NOT NULL,
+    uploaded_by TEXT,
+    is_indexed INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_documents_filename ON documents(filename);
+CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at);
 """
 
 

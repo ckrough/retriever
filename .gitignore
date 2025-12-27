@@ -57,5 +57,5 @@ Thumbs.db
 # Vector database persistence
 data/
 
-# Knowledge Documents
-documents/
+# Knowledge Documents (root folder only)
+/documents/

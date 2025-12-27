@@ -3,19 +3,29 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
+from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 
 from src.config import Settings, get_settings
 from src.infrastructure.cache import ChromaSemanticCache
+from src.infrastructure.database import get_database
 from src.infrastructure.embeddings import (
     EmbeddingProviderError,
     OpenAIEmbeddingProvider,
 )
 from src.infrastructure.llm import OpenRouterProvider
 from src.infrastructure.vectordb import ChromaVectorStore
+from src.modules.documents import (
+    DocumentAlreadyExistsError,
+    DocumentIndexingError,
+    DocumentNotFoundError,
+    DocumentRepository,
+    DocumentService,
+    DocumentValidationError,
+)
 from src.modules.rag import HybridRetriever, RAGService, list_documents, load_document
 from src.modules.rag.loader import DocumentLoadError
 from src.web.dependencies import require_admin
@@ -80,6 +90,28 @@ def get_admin_rag_service(
     )
 
 
+def get_document_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+    rag_service: Annotated[RAGService | None, Depends(get_admin_rag_service)],
+) -> DocumentService | None:
+    """Get the document service for document management operations.
+
+    Returns None if RAG is not configured.
+    """
+    if rag_service is None:
+        return None
+
+    database = get_database()
+    repository = DocumentRepository(database)
+
+    return DocumentService(
+        repository=repository,
+        rag_service=rag_service,
+        uploads_path=Path(settings.uploads_path),
+        documents_path=Path(settings.documents_path),
+    )
+
+
 def _load_document_info(doc_path: Path) -> DocumentInfo:
     """Load document metadata for admin display.
 
@@ -112,17 +144,22 @@ async def admin_index(
     vector_store: Annotated[ChromaVectorStore, Depends(get_vector_store)],
     semantic_cache: Annotated[ChromaSemanticCache | None, Depends(get_semantic_cache)],
     hybrid_retriever: Annotated[HybridRetriever | None, Depends(get_hybrid_retriever)],
+    doc_service: Annotated[DocumentService | None, Depends(get_document_service)],
     _admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
     """Render the admin dashboard.
 
     Requires admin authentication when enabled.
     """
+    # Static documents from ./documents/
     documents_path = Path(settings.documents_path)
     document_paths = list_documents(documents_path)
+    static_documents = [_load_document_info(doc_path) for doc_path in document_paths]
 
-    # Load document metadata for each document
-    documents = [_load_document_info(doc_path) for doc_path in document_paths]
+    # Uploaded documents from database
+    uploaded_documents = []
+    if doc_service is not None:
+        uploaded_documents = await doc_service.list_documents()
 
     # Check configuration status
     llm_configured = settings.openrouter_api_key is not None
@@ -142,9 +179,11 @@ async def admin_index(
         request=request,
         name="admin/index.html",
         context={
-            "documents": documents,
+            "static_documents": static_documents,
+            "uploaded_documents": uploaded_documents,
             "chunk_count": vector_store.count(),
             "documents_path": str(documents_path),
+            "uploads_path": str(settings.uploads_path),
             "llm_configured": llm_configured,
             "embeddings_configured": embeddings_configured,
             "cache_enabled": cache_enabled,
@@ -162,7 +201,7 @@ async def index_documents(
     rag_service: Annotated[RAGService | None, Depends(get_admin_rag_service)],
     _admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)],
 ) -> Response:
-    """Index all documents in the documents folder.
+    """Index all documents from both static and uploads directories.
 
     Requires admin authentication when enabled.
     """
@@ -176,13 +215,22 @@ async def index_documents(
         )
 
     try:
-        documents_path = Path(settings.documents_path)
-
         # Clear existing index
         await rag_service.clear_index()
 
-        # Index all documents
-        results = await rag_service.index_all_documents(documents_path)
+        results = []
+
+        # Index static documents
+        documents_path = Path(settings.documents_path)
+        if documents_path.exists():
+            static_results = await rag_service.index_all_documents(documents_path)
+            results.extend(static_results)
+
+        # Index uploaded documents
+        uploads_path = Path(settings.uploads_path)
+        if uploads_path.exists():
+            upload_results = await rag_service.index_all_documents(uploads_path)
+            results.extend(upload_results)
 
         total_chunks = sum(r.chunks_created for r in results if r.success)
         success_count = sum(1 for r in results if r.success)
@@ -271,3 +319,207 @@ async def clear_cache(
                 "message": f"Failed to clear cache: {e}",
             },
         )
+
+
+# Document Management Routes
+
+
+@router.post("/documents/upload", response_class=HTMLResponse)
+async def upload_document(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    description: Annotated[str | None, Form()] = None,
+    doc_service: Annotated[
+        DocumentService | None, Depends(get_document_service)
+    ] = None,
+    admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)] = None,
+) -> Response:
+    """Upload and index a new document.
+
+    Requires admin authentication when enabled.
+    """
+    if doc_service is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_error.html",
+            context={
+                "error_message": "RAG not configured. Please set OPENROUTER_API_KEY and EMBEDDING_API_KEY."
+            },
+        )
+
+    if not file.filename:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_error.html",
+            context={"error_message": "No file selected."},
+        )
+
+    # Sanitize filename early for safe logging
+    safe_filename = Path(file.filename).name.strip() if file.filename else "unknown"
+
+    # Validate file size before reading into memory (defense against memory exhaustion)
+    max_size_bytes = 1 * 1024 * 1024  # 1 MB
+    if file.size is not None and file.size > max_size_bytes:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_error.html",
+            context={"error_message": "File too large. Maximum size: 1 MB"},
+        )
+
+    try:
+        # Read file content
+        file_content = await file.read()
+
+        # Double-check size after reading (in case file.size was unavailable)
+        if len(file_content) > max_size_bytes:
+            return templates.TemplateResponse(
+                request=request,
+                name="admin/partials/upload_error.html",
+                context={"error_message": "File too large. Maximum size: 1 MB"},
+            )
+
+        # Get user ID if authenticated
+        uploaded_by = None
+        if admin_user:
+            uploaded_by = UUID(admin_user["user_id"])
+
+        # Upload and index document
+        doc = await doc_service.upload_document(
+            file_content=file_content,
+            filename=file.filename,
+            description=description,
+            uploaded_by=uploaded_by,
+        )
+
+        logger.info(
+            "admin_document_uploaded",
+            filename=doc.filename,
+            title=doc.title,
+            uploaded_by=str(uploaded_by) if uploaded_by else "anonymous",
+        )
+
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_success.html",
+            context={
+                "document": doc,
+            },
+        )
+
+    except DocumentAlreadyExistsError as e:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_error.html",
+            context={"error_message": f"Document '{e.filename}' already exists."},
+        )
+
+    except DocumentValidationError as e:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_error.html",
+            context={"error_message": str(e)},
+        )
+
+    except DocumentIndexingError as e:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_error.html",
+            context={"error_message": f"Indexing failed: {e.reason}"},
+        )
+
+    except Exception as e:
+        logger.error(
+            "admin_document_upload_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            filename=safe_filename,  # Use sanitized filename for safe logging
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/upload_error.html",
+            context={"error_message": f"Upload failed: {e}"},
+        )
+
+
+@router.delete("/documents/{doc_id}", response_class=HTMLResponse)
+async def delete_document(
+    request: Request,
+    doc_id: UUID,
+    doc_service: Annotated[
+        DocumentService | None, Depends(get_document_service)
+    ] = None,
+    _admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)] = None,
+) -> Response:
+    """Delete a document and rebuild the index.
+
+    Due to ChromaDB limitations, this clears and rebuilds the entire index.
+    Requires admin authentication when enabled.
+    """
+    if doc_service is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/delete_error.html",
+            context={
+                "error_message": "RAG not configured. Please set OPENROUTER_API_KEY and EMBEDDING_API_KEY."
+            },
+        )
+
+    try:
+        # Get document info before deletion for logging
+        doc = await doc_service.get_document(doc_id)
+        filename = doc.filename
+
+        # Delete document (includes reindexing)
+        await doc_service.delete_document(doc_id)
+
+        logger.info("admin_document_deleted", doc_id=str(doc_id), filename=filename)
+
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/delete_success.html",
+            context={"filename": filename},
+        )
+
+    except DocumentNotFoundError:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/delete_error.html",
+            context={"error_message": "Document not found."},
+        )
+
+    except Exception as e:
+        logger.error(
+            "admin_document_delete_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            doc_id=str(doc_id),
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/partials/delete_error.html",
+            context={"error_message": f"Delete failed: {e}"},
+        )
+
+
+@router.get("/documents", response_class=HTMLResponse)
+async def list_uploaded_documents(
+    request: Request,
+    doc_service: Annotated[
+        DocumentService | None, Depends(get_document_service)
+    ] = None,
+    _admin_user: Annotated[dict[str, Any] | None, Depends(require_admin)] = None,
+) -> Response:
+    """List all uploaded documents.
+
+    Requires admin authentication when enabled.
+    Returns an HTMX partial for the documents list.
+    """
+    documents = []
+    if doc_service is not None:
+        documents = await doc_service.list_documents()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/partials/documents_list.html",
+        context={"documents": documents},
+    )
