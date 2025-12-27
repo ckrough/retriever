@@ -1,0 +1,60 @@
+{% if documents %}
+<ul class="space-y-3">
+    {% for doc in documents %}
+    <li class="flex items-start justify-between p-3 bg-gray-50 rounded-lg group">
+        <div class="flex items-start flex-1 min-w-0">
+            <svg class="w-5 h-5 mr-3 mt-0.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="font-medium text-gray-900 truncate">{{ doc.title }}</span>
+                    {% if doc.file_type == "markdown" %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        MD
+                    </span>
+                    {% elif doc.file_type == "text" %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-700">
+                        TXT
+                    </span>
+                    {% endif %}
+                    {% if doc.is_indexed %}
+                    <span class="inline-flex w-2 h-2 bg-green-500 rounded-full" title="Indexed"></span>
+                    {% else %}
+                    <span class="inline-flex w-2 h-2 bg-yellow-500 rounded-full" title="Not indexed"></span>
+                    {% endif %}
+                </div>
+                <div class="text-sm text-gray-500 truncate">{{ doc.filename }}</div>
+                {% if doc.description %}
+                <div class="text-sm text-gray-600 mt-1 line-clamp-2">{{ doc.description }}</div>
+                {% endif %}
+                <div class="text-xs text-gray-400 mt-1">
+                    Uploaded: {{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% if doc.file_size_bytes < 1024 %}
+                    &middot; {{ doc.file_size_bytes }} bytes
+                    {% elif doc.file_size_bytes < 1048576 %}
+                    &middot; {{ (doc.file_size_bytes / 1024)|round(1) }} KB
+                    {% else %}
+                    &middot; {{ (doc.file_size_bytes / 1048576)|round(2) }} MB
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <button
+            hx-delete="/admin/documents/{{ doc.id }}"
+            hx-target="#delete-result"
+            hx-swap="innerHTML"
+            hx-confirm="Delete '{{ doc.filename }}'? This will clear and rebuild the entire index, which may take a moment."
+            hx-indicator="#delete-loading"
+            class="ml-4 text-red-600 hover:text-red-800 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+            Delete
+        </button>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-gray-500 italic text-center py-4">
+    No uploaded documents yet. Use the form above to upload your first document.
+</p>
+{% endif %}

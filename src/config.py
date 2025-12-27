@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
-    # Server
-    host: str = "0.0.0.0"
+    # Server - bind to all interfaces for container deployment
+    host: str = "0.0.0.0"  # nosec B104
     port: int = 8000
 
     # LLM Provider (OpenRouter)
@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     rag_chunk_overlap: int = 800  # Characters
     rag_top_k: int = 5  # Number of chunks to retrieve
     documents_path: str = "./documents"
+    uploads_path: str = "./uploads"  # Directory for user-uploaded documents
 
     # Semantic Cache
     cache_enabled: bool = True  # Enable semantic caching for faster responses

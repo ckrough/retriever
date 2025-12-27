@@ -94,7 +94,7 @@ def markdown_filter(text: str) -> Markup:
         strip=True,  # Strip disallowed tags instead of escaping them
     )
 
-    return Markup(clean_html)
+    return Markup(clean_html)  # nosec B704 - sanitized by bleach.clean()
 
 
 # Register the markdown filter

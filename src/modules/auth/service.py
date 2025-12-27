@@ -133,7 +133,7 @@ class AuthService:
 
         return LoginResponse(
             access_token=token,
-            token_type="bearer",
+            token_type="bearer",  # nosec B106 - OAuth2 token type, not a password
             expires_in=self._jwt_expire_hours * 3600,
             user=UserResponse(
                 id=user.id,
