@@ -147,3 +147,19 @@ dev = [
     "types-bleach>=6.3.0.20251115",
     "types-markdown>=3.10.0.20251106",
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = [
+    "src/__init__.py:__version__",
+    "src/config.py:app_version",
+]
+tag_format = "v{version}"
+commit_message = "chore(release): {version}"
+branch = "main"
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.remote]
+type = "github"
