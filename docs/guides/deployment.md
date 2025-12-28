@@ -9,12 +9,12 @@ How to deploy Retriever to production.
 | **Docker** | N/A | Full control, portable | Testing production build locally |
 | Railway | 500 hours/month | Simple, good DX | Quick MVP deployment |
 | Render | 750 hours/month | Easy setup | Quick MVP deployment |
-| Google Cloud Run | Free tier available | Serverless, auto-scaling | Production scale |
+| **Google Cloud Run** | Free tier available | Serverless, auto-scaling | Production scale |
 
 Choose based on your needs:
 - **Docker** (local): Test production build before deploying
 - **Railway/Render**: Quick MVP deployment with minimal setup
-- **Cloud Run**: Production-ready with auto-scaling (requires Docker setup)
+- **Cloud Run**: Production-ready with auto-scaling (see [Cloud Run Guide](./cloudrun-deployment.md))
 
 ## Docker Deployment
 
@@ -88,7 +88,10 @@ docker run --rm \
 
 ### Deploying to Cloud Run
 
-See [README.md](../../README.md#deployment) for detailed Cloud Run deployment instructions.
+See [Cloud Run Deployment Guide](./cloudrun-deployment.md) for detailed instructions including:
+- One-time GCP project setup
+- Secret Manager configuration
+- Deployment commands for staging/production
 
 ---
 
