@@ -30,7 +30,7 @@ MAX_QUESTION_LENGTH = 2000
 
 # Singletons (per process)
 _vector_store_cache: dict[str, ChromaVectorStore] = {}
-_semantic_cache_instance: dict[str, ChromaSemanticCache] = {}
+_semantic_cache_instance: dict[str, ChromaSemanticCache | None] = {}
 _hybrid_retriever_instance: dict[str, HybridRetriever] = {}
 
 
@@ -79,33 +79,46 @@ def get_semantic_cache(
     """Get or create the semantic cache singleton.
 
     Returns None if caching is disabled or embeddings aren't configured.
+    The result (including None) is cached to avoid repeated logging.
     """
+    persist_path = settings.chroma_persist_path
+
+    # Check singleton cache first (includes None entries for disabled cache)
+    if persist_path in _semantic_cache_instance:
+        return _semantic_cache_instance[persist_path]
+
+    # First time: determine cache state and log once
     if not settings.cache_enabled:
+        logger.info("semantic_cache_disabled", reason="cache_enabled=False")
+        _semantic_cache_instance[persist_path] = None
         return None
 
     if settings.embedding_api_key is None:
+        logger.info(
+            "semantic_cache_disabled",
+            reason="embedding_api_key not configured",
+        )
+        _semantic_cache_instance[persist_path] = None
         return None
 
-    persist_path = settings.chroma_persist_path
+    # Create and cache the semantic cache instance
+    embedding_provider = OpenAIEmbeddingProvider(
+        api_key=settings.embedding_api_key.get_secret_value(),
+        model=settings.embedding_model,
+        base_url=settings.embedding_base_url,
+        timeout_seconds=settings.embedding_timeout_seconds,
+        circuit_breaker_fail_max=settings.circuit_breaker_fail_max,
+        circuit_breaker_timeout=settings.circuit_breaker_timeout,
+    )
 
-    if persist_path not in _semantic_cache_instance:
-        embedding_provider = OpenAIEmbeddingProvider(
-            api_key=settings.embedding_api_key.get_secret_value(),
-            model=settings.embedding_model,
-            base_url=settings.embedding_base_url,
-            timeout_seconds=settings.embedding_timeout_seconds,
-            circuit_breaker_fail_max=settings.circuit_breaker_fail_max,
-            circuit_breaker_timeout=settings.circuit_breaker_timeout,
-        )
-
-        _semantic_cache_instance[persist_path] = ChromaSemanticCache(
-            embedding_provider=embedding_provider,
-            persist_path=Path(persist_path),
-            similarity_threshold=settings.cache_similarity_threshold,
-            ttl_hours=settings.cache_ttl_hours,
-        )
-
-    return _semantic_cache_instance[persist_path]
+    cache = ChromaSemanticCache(
+        embedding_provider=embedding_provider,
+        persist_path=Path(persist_path),
+        similarity_threshold=settings.cache_similarity_threshold,
+        ttl_hours=settings.cache_ttl_hours,
+    )
+    _semantic_cache_instance[persist_path] = cache
+    return cache
 
 
 def get_hybrid_retriever(
