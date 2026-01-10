@@ -47,6 +47,7 @@ class OpenRouterProvider:
         timeout_seconds: float = 30.0,
         circuit_breaker_fail_max: int = 5,
         circuit_breaker_timeout: float = 60.0,
+        enable_prompt_caching: bool = True,
     ) -> None:
         """Initialize the OpenRouter provider.
 
@@ -56,6 +57,7 @@ class OpenRouterProvider:
             timeout_seconds: Request timeout in seconds.
             circuit_breaker_fail_max: Open circuit after this many failures.
             circuit_breaker_timeout: Time in seconds before attempting recovery.
+            enable_prompt_caching: Enable Anthropic prompt caching via OpenRouter.
 
         Raises:
             LLMConfigurationError: If API key is missing.
@@ -72,6 +74,7 @@ class OpenRouterProvider:
         )
         self._default_model = default_model
         self._timeout = timeout_seconds
+        self._enable_prompt_caching = enable_prompt_caching
 
         # Circuit breaker: fail fast after repeated failures
         self._breaker = CircuitBreaker(
@@ -165,6 +168,60 @@ class OpenRouterProvider:
             self._do_complete, system_prompt, user_message, model
         )
 
+    def _build_system_message(self, system_prompt: str) -> dict[str, object]:
+        """Build system message with optional cache control.
+
+        The cache_control format follows Anthropic's prompt caching API,
+        which OpenRouter passes through to Anthropic models. For non-Anthropic
+        models, the cache_control field is typically ignored by the provider.
+
+        Args:
+            system_prompt: The system prompt text.
+
+        Returns:
+            Message dict with cache_control if caching is enabled.
+        """
+        if self._enable_prompt_caching:
+            return {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+            }
+        return {"role": "system", "content": system_prompt}
+
+    def _log_cache_metrics(self, response: object, model: str) -> None:
+        """Log cache performance metrics from response.
+
+        Args:
+            response: The API response object.
+            model: The model used for the request.
+        """
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return
+
+        # Safely extract cache metrics with fallback to 0
+        try:
+            cache_read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+            cache_creation = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+        except (TypeError, ValueError):
+            # Handle cases where attributes aren't numeric
+            return
+
+        if cache_read > 0 or cache_creation > 0:
+            logger.info(
+                "llm_cache_metrics",
+                provider=self.PROVIDER_NAME,
+                model=model,
+                cache_read_tokens=cache_read,
+                cache_creation_tokens=cache_creation,
+            )
+
     async def _do_complete(
         self,
         system_prompt: str,
@@ -184,15 +241,19 @@ class OpenRouterProvider:
         )
 
         try:
+            messages: list[dict[str, object]] = [
+                self._build_system_message(system_prompt),
+                {"role": "user", "content": user_message},
+            ]
+
             response = await self._client.chat.completions.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
+                messages=messages,  # type: ignore[arg-type]
             )
 
             content = response.choices[0].message.content or ""
+
+            self._log_cache_metrics(response, model)
 
             logger.debug(
                 "llm_request_success",
@@ -333,11 +394,11 @@ class OpenRouterProvider:
         )
 
         try:
-            # Build messages array with system prompt first
-            all_messages: list[dict[str, str]] = [
-                {"role": "system", "content": system_prompt}
+            # Build messages array with system prompt first (with cache control)
+            all_messages: list[dict[str, object]] = [
+                self._build_system_message(system_prompt)
             ]
-            all_messages.extend(messages)
+            all_messages.extend(messages)  # type: ignore[arg-type]
 
             response = await self._client.chat.completions.create(
                 model=model,
@@ -345,6 +406,8 @@ class OpenRouterProvider:
             )
 
             content = response.choices[0].message.content or ""
+
+            self._log_cache_metrics(response, model)
 
             logger.debug(
                 "llm_history_request_success",
