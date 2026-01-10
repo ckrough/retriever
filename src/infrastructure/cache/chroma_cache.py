@@ -10,8 +10,10 @@ from chromadb.config import Settings as ChromaSettings
 
 from src.infrastructure.cache.protocol import CacheEntry
 from src.infrastructure.embeddings import EmbeddingProvider
+from src.infrastructure.observability import get_tracer
 
 logger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 
 class ChromaSemanticCache:
@@ -83,94 +85,107 @@ class ChromaSemanticCache:
             CacheEntry if a similar question was found above the
             similarity threshold, None otherwise.
         """
-        if self._collection.count() == 0:
-            return None
+        with tracer.start_as_current_span("cache.get") as span:
+            span.set_attribute("cache.question_length", len(question))
 
-        # Embed the question
-        query_embedding = await self._embeddings.embed(question)
+            if self._collection.count() == 0:
+                span.set_attribute("cache.hit", False)
+                span.set_attribute("cache.miss_reason", "empty_cache")
+                return None
 
-        # Query for similar cached questions
-        results = self._collection.query(
-            query_embeddings=[query_embedding],  # type: ignore[arg-type]
-            n_results=1,
-            include=["documents", "metadatas", "distances"],  # type: ignore[list-item]
-        )
+            # Embed the question
+            query_embedding = await self._embeddings.embed(question)
 
-        # Check if we got a result
-        ids_result = results.get("ids")
-        if not ids_result or not ids_result[0]:
-            logger.debug("cache_miss_no_results", question_length=len(question))
-            return None
-
-        # Get the distance and convert to similarity
-        distances_result = results.get("distances")
-        if distances_result and distances_result[0]:
-            distance = float(distances_result[0][0])
-        else:
-            distance = 2.0  # Max cosine distance
-        similarity = 1.0 - distance
-
-        # Check threshold
-        if similarity < self._similarity_threshold:
-            logger.debug(
-                "cache_miss_below_threshold",
-                similarity=similarity,
-                threshold=self._similarity_threshold,
-                question_length=len(question),
+            # Query for similar cached questions
+            results = self._collection.query(
+                query_embeddings=[query_embedding],
+                n_results=1,
+                include=["documents", "metadatas", "distances"],
             )
-            return None
 
-        # Check TTL
-        metadatas_result = results.get("metadatas")
-        if metadatas_result and metadatas_result[0]:
-            metadata = metadatas_result[0][0]
-        else:
-            metadata = {}
-        created_at_str = str(metadata.get("created_at", ""))
+            # Check if we got a result
+            ids_result = results.get("ids")
+            if not ids_result or not ids_result[0]:
+                span.set_attribute("cache.hit", False)
+                span.set_attribute("cache.miss_reason", "no_results")
+                logger.debug("cache_miss_no_results", question_length=len(question))
+                return None
 
-        if created_at_str:
-            try:
-                created_at = datetime.fromisoformat(created_at_str)
-                # Handle timezone-naive datetime from storage
-                if created_at.tzinfo is None:
-                    created_at = created_at.replace(tzinfo=UTC)
-                age_hours = (datetime.now(UTC) - created_at).total_seconds() / 3600
-                if age_hours > self._ttl_hours:
-                    logger.debug(
-                        "cache_miss_expired",
-                        age_hours=age_hours,
-                        ttl_hours=self._ttl_hours,
-                    )
-                    return None
-            except ValueError:
-                pass  # Invalid date, treat as valid
+            # Get the distance and convert to similarity
+            distances_result = results.get("distances")
+            if distances_result and distances_result[0]:
+                distance = float(distances_result[0][0])
+            else:
+                distance = 2.0  # Max cosine distance
+            similarity = 1.0 - distance
+            span.set_attribute("cache.similarity", similarity)
 
-        # Cache hit!
-        documents_result = results.get("documents")
-        if documents_result and documents_result[0]:
-            answer = str(documents_result[0][0])
-        else:
-            answer = ""
+            # Check threshold
+            if similarity < self._similarity_threshold:
+                span.set_attribute("cache.hit", False)
+                span.set_attribute("cache.miss_reason", "below_threshold")
+                logger.debug(
+                    "cache_miss_below_threshold",
+                    similarity=similarity,
+                    threshold=self._similarity_threshold,
+                    question_length=len(question),
+                )
+                return None
 
-        cached_question = str(metadata.get("question", ""))
-        chunks_json = str(metadata.get("chunks_json", "[]"))
+            # Check TTL
+            metadatas_result = results.get("metadatas")
+            if metadatas_result and metadatas_result[0]:
+                metadata = metadatas_result[0][0]
+            else:
+                metadata = {}
+            created_at_str = str(metadata.get("created_at", ""))
 
-        logger.info(
-            "cache_hit",
-            similarity=similarity,
-            cached_question_length=len(cached_question),
-            query_question_length=len(question),
-        )
+            if created_at_str:
+                try:
+                    created_at = datetime.fromisoformat(created_at_str)
+                    # Handle timezone-naive datetime from storage
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=UTC)
+                    age_hours = (datetime.now(UTC) - created_at).total_seconds() / 3600
+                    if age_hours > self._ttl_hours:
+                        span.set_attribute("cache.hit", False)
+                        span.set_attribute("cache.miss_reason", "expired")
+                        logger.debug(
+                            "cache_miss_expired",
+                            age_hours=age_hours,
+                            ttl_hours=self._ttl_hours,
+                        )
+                        return None
+                except ValueError:
+                    pass  # Invalid date, treat as valid
 
-        return CacheEntry(
-            question=cached_question,
-            answer=answer,
-            chunks_json=chunks_json,
-            created_at=datetime.fromisoformat(created_at_str)
-            if created_at_str
-            else datetime.now(UTC),
-            similarity_score=similarity,
-        )
+            # Cache hit!
+            span.set_attribute("cache.hit", True)
+            documents_result = results.get("documents")
+            if documents_result and documents_result[0]:
+                answer = str(documents_result[0][0])
+            else:
+                answer = ""
+
+            cached_question = str(metadata.get("question", ""))
+            chunks_json = str(metadata.get("chunks_json", "[]"))
+
+            logger.info(
+                "cache_hit",
+                similarity=similarity,
+                cached_question_length=len(cached_question),
+                query_question_length=len(question),
+            )
+
+            return CacheEntry(
+                question=cached_question,
+                answer=answer,
+                chunks_json=chunks_json,
+                created_at=datetime.fromisoformat(created_at_str)
+                if created_at_str
+                else datetime.now(UTC),
+                similarity_score=similarity,
+            )
 
     async def set(
         self,
@@ -185,32 +200,39 @@ class ChromaSemanticCache:
             answer: The generated answer.
             chunks_json: JSON-serialized list of ChunkWithScore used.
         """
-        # Generate embedding for the question
-        question_embedding = await self._embeddings.embed(question)
+        with tracer.start_as_current_span("cache.set") as span:
+            span.set_attribute("cache.question_length", len(question))
+            span.set_attribute("cache.answer_length", len(answer))
 
-        # Generate unique ID
-        entry_id = f"cache:{uuid.uuid4().hex}"
+            # Generate embedding for the question
+            question_embedding = await self._embeddings.embed(question)
 
-        # Store with metadata
-        self._collection.add(
-            ids=[entry_id],
-            documents=[answer],
-            embeddings=[question_embedding],  # type: ignore[arg-type]
-            metadatas=[
-                {
-                    "question": question,
-                    "chunks_json": chunks_json,
-                    "created_at": datetime.now(UTC).isoformat(),
-                }
-            ],
-        )
+            # Generate unique ID
+            entry_id = f"cache:{uuid.uuid4().hex}"
 
-        logger.debug(
-            "cache_set",
-            question_length=len(question),
-            answer_length=len(answer),
-            total_cached=self._collection.count(),
-        )
+            # Store with metadata
+            self._collection.add(
+                ids=[entry_id],
+                documents=[answer],
+                embeddings=[question_embedding],
+                metadatas=[
+                    {
+                        "question": question,
+                        "chunks_json": chunks_json,
+                        "created_at": datetime.now(UTC).isoformat(),
+                    }
+                ],
+            )
+
+            total_cached = self._collection.count()
+            span.set_attribute("cache.total_entries", total_cached)
+
+            logger.debug(
+                "cache_set",
+                question_length=len(question),
+                answer_length=len(answer),
+                total_cached=total_cached,
+            )
 
     async def clear(self) -> None:
         """Clear all cached entries.

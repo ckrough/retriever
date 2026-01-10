@@ -13,6 +13,7 @@ from src.api.health import router as health_router
 from src.api.rate_limit import limiter, rate_limit_exceeded_handler
 from src.config import get_settings
 from src.infrastructure.database import Database, init_database
+from src.infrastructure.observability import init_observability, shutdown_observability
 from src.modules.auth.repository import UserRepository
 from src.modules.auth.routes import router as auth_api_router
 from src.modules.auth.routes import set_auth_service as set_api_auth_service
@@ -31,9 +32,25 @@ _database: Database | None = None
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan handler for startup/shutdown."""
     global _database
+
+    # Initialize observability first (before other services)
+    init_observability(
+        service_name=settings.otel_service_name,
+        service_version=settings.app_version,
+        otlp_endpoint=settings.otel_endpoint,
+        console_export=(settings.otel_exporter == "console"),
+        enabled=settings.otel_enabled,
+        sample_rate=settings.otel_sample_rate,
+        app=app,
+    )
+    logger.info(
+        "observability_initialized",
+        enabled=settings.otel_enabled,
+        exporter=settings.otel_exporter,
+    )
 
     # Initialize database (sets global in connection module)
     db_path = Path(settings.database_path)
@@ -65,6 +82,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         await _database.disconnect()
         logger.info("database_disconnected")
 
+    # Shutdown observability (flush pending spans)
+    shutdown_observability()
+    logger.info("observability_shutdown")
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -78,13 +99,13 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(
     RateLimitExceeded,
-    rate_limit_exceeded_handler,  # type: ignore[arg-type]
+    rate_limit_exceeded_handler,
 )
 
 # Authentication redirect
 app.add_exception_handler(
     AuthenticationRequired,
-    auth_exception_handler,  # type: ignore[arg-type]
+    auth_exception_handler,
 )
 
 # Static files (optional - only mount if directory exists)

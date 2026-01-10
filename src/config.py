@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     # Conversation History
     conversation_max_messages: int = 20  # Max messages to include in context
 
+    # OpenTelemetry / Observability
+    otel_enabled: bool = True  # Enable OpenTelemetry tracing
+    otel_exporter: str = "none"  # Exporter: "otlp", "console", or "none"
+    otel_endpoint: str | None = None  # OTLP endpoint (e.g., "http://localhost:4318")
+    otel_service_name: str = "retriever"  # Service name for traces
+    otel_sample_rate: float = 1.0  # Sampling rate (0.0 to 1.0)
+
 
 @lru_cache
 def get_settings() -> Settings:
