@@ -19,8 +19,10 @@ from src.infrastructure.embeddings.exceptions import (
     EmbeddingRateLimitError,
     EmbeddingTimeoutError,
 )
+from src.infrastructure.observability import get_tracer
 
 logger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 
 class OpenAIEmbeddingProvider:
@@ -102,44 +104,53 @@ class OpenAIEmbeddingProvider:
             EmbeddingTimeoutError: If the request times out.
             EmbeddingRateLimitError: If rate limited.
         """
-        try:
-            result = await self._embed_with_resilience([text])
-            return result[0]
+        with tracer.start_as_current_span("embeddings.embed") as span:
+            span.set_attribute("embeddings.provider", self.PROVIDER_NAME)
+            span.set_attribute("embeddings.model", self._model)
+            span.set_attribute("embeddings.input_length", len(text))
 
-        except CircuitBreakerError as e:
-            logger.warning(
-                "circuit_breaker_open",
-                provider=self.PROVIDER_NAME,
-                model=self._model,
-            )
-            raise EmbeddingProviderError(
-                "Service temporarily unavailable. Please try again in a moment.",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            try:
+                result = await self._embed_with_resilience([text])
+                span.set_attribute("embeddings.dimensions", len(result[0]))
+                return result[0]
 
-        except APITimeoutError as e:
-            logger.warning(
-                "embedding_timeout",
-                provider=self.PROVIDER_NAME,
-                model=self._model,
-                timeout_seconds=self._timeout,
-            )
-            raise EmbeddingTimeoutError(
-                f"Request timed out after {self._timeout}s",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except CircuitBreakerError as e:
+                span.record_exception(e)
+                logger.warning(
+                    "circuit_breaker_open",
+                    provider=self.PROVIDER_NAME,
+                    model=self._model,
+                )
+                raise EmbeddingProviderError(
+                    "Service temporarily unavailable. Please try again in a moment.",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
-        except APIConnectionError as e:
-            logger.error(
-                "embedding_connection_error",
-                provider=self.PROVIDER_NAME,
-                model=self._model,
-                error=str(e),
-            )
-            raise EmbeddingProviderError(
-                "Unable to connect to embedding service",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except APITimeoutError as e:
+                span.record_exception(e)
+                logger.warning(
+                    "embedding_timeout",
+                    provider=self.PROVIDER_NAME,
+                    model=self._model,
+                    timeout_seconds=self._timeout,
+                )
+                raise EmbeddingTimeoutError(
+                    f"Request timed out after {self._timeout}s",
+                    provider=self.PROVIDER_NAME,
+                ) from e
+
+            except APIConnectionError as e:
+                span.record_exception(e)
+                logger.error(
+                    "embedding_connection_error",
+                    provider=self.PROVIDER_NAME,
+                    model=self._model,
+                    error=str(e),
+                )
+                raise EmbeddingProviderError(
+                    "Unable to connect to embedding service",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embedding vectors for multiple texts.
@@ -158,44 +169,55 @@ class OpenAIEmbeddingProvider:
         if not texts:
             return []
 
-        try:
-            return await self._embed_with_resilience(texts)
+        with tracer.start_as_current_span("embeddings.embed_batch") as span:
+            span.set_attribute("embeddings.provider", self.PROVIDER_NAME)
+            span.set_attribute("embeddings.model", self._model)
+            span.set_attribute("embeddings.batch_size", len(texts))
 
-        except CircuitBreakerError as e:
-            logger.warning(
-                "circuit_breaker_open",
-                provider=self.PROVIDER_NAME,
-                model=self._model,
-            )
-            raise EmbeddingProviderError(
-                "Service temporarily unavailable. Please try again in a moment.",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            try:
+                result = await self._embed_with_resilience(texts)
+                if result:
+                    span.set_attribute("embeddings.dimensions", len(result[0]))
+                return result
 
-        except APITimeoutError as e:
-            logger.warning(
-                "embedding_timeout",
-                provider=self.PROVIDER_NAME,
-                model=self._model,
-                timeout_seconds=self._timeout,
-                batch_size=len(texts),
-            )
-            raise EmbeddingTimeoutError(
-                f"Request timed out after {self._timeout}s",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except CircuitBreakerError as e:
+                span.record_exception(e)
+                logger.warning(
+                    "circuit_breaker_open",
+                    provider=self.PROVIDER_NAME,
+                    model=self._model,
+                )
+                raise EmbeddingProviderError(
+                    "Service temporarily unavailable. Please try again in a moment.",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
-        except APIConnectionError as e:
-            logger.error(
-                "embedding_connection_error",
-                provider=self.PROVIDER_NAME,
-                model=self._model,
-                error=str(e),
-            )
-            raise EmbeddingProviderError(
-                "Unable to connect to embedding service",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except APITimeoutError as e:
+                span.record_exception(e)
+                logger.warning(
+                    "embedding_timeout",
+                    provider=self.PROVIDER_NAME,
+                    model=self._model,
+                    timeout_seconds=self._timeout,
+                    batch_size=len(texts),
+                )
+                raise EmbeddingTimeoutError(
+                    f"Request timed out after {self._timeout}s",
+                    provider=self.PROVIDER_NAME,
+                ) from e
+
+            except APIConnectionError as e:
+                span.record_exception(e)
+                logger.error(
+                    "embedding_connection_error",
+                    provider=self.PROVIDER_NAME,
+                    model=self._model,
+                    error=str(e),
+                )
+                raise EmbeddingProviderError(
+                    "Unable to connect to embedding service",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
     @retry(
         retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),

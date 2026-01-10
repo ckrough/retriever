@@ -18,8 +18,10 @@ from src.infrastructure.llm.exceptions import (
     LLMRateLimitError,
     LLMTimeoutError,
 )
+from src.infrastructure.observability import get_tracer
 
 logger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 # System prompt for Retriever assistant
 DEFAULT_SYSTEM_PROMPT = """You are Retriever, a helpful assistant for animal shelter volunteers.
@@ -103,50 +105,59 @@ class OpenRouterProvider:
         """
         model_to_use = model or self._default_model
 
-        try:
-            result: str = await self._complete_with_resilience(
-                system_prompt=system_prompt,
-                user_message=user_message,
-                model=model_to_use,
-            )
-            return result
+        with tracer.start_as_current_span("llm.complete") as span:
+            span.set_attribute("llm.provider", self.PROVIDER_NAME)
+            span.set_attribute("llm.model", model_to_use)
+            span.set_attribute("llm.input_length", len(user_message))
 
-        except CircuitBreakerError as e:
-            logger.warning(
-                "circuit_breaker_open",
-                provider=self.PROVIDER_NAME,
-                model=model_to_use,
-            )
-            raise LLMProviderError(
-                "Service temporarily unavailable. Please try again in a moment.",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            try:
+                result: str = await self._complete_with_resilience(
+                    system_prompt=system_prompt,
+                    user_message=user_message,
+                    model=model_to_use,
+                )
+                span.set_attribute("llm.output_length", len(result))
+                return result
 
-        except APITimeoutError as e:
-            # After all retries exhausted
-            logger.warning(
-                "llm_timeout",
-                provider=self.PROVIDER_NAME,
-                model=model_to_use,
-                timeout_seconds=self._timeout,
-            )
-            raise LLMTimeoutError(
-                f"Request timed out after {self._timeout}s",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except CircuitBreakerError as e:
+                span.record_exception(e)
+                logger.warning(
+                    "circuit_breaker_open",
+                    provider=self.PROVIDER_NAME,
+                    model=model_to_use,
+                )
+                raise LLMProviderError(
+                    "Service temporarily unavailable. Please try again in a moment.",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
-        except APIConnectionError as e:
-            # After all retries exhausted
-            logger.error(
-                "llm_connection_error",
-                provider=self.PROVIDER_NAME,
-                model=model_to_use,
-                error=str(e),
-            )
-            raise LLMProviderError(
-                "Unable to connect to LLM service",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except APITimeoutError as e:
+                # After all retries exhausted
+                span.record_exception(e)
+                logger.warning(
+                    "llm_timeout",
+                    provider=self.PROVIDER_NAME,
+                    model=model_to_use,
+                    timeout_seconds=self._timeout,
+                )
+                raise LLMTimeoutError(
+                    f"Request timed out after {self._timeout}s",
+                    provider=self.PROVIDER_NAME,
+                ) from e
+
+            except APIConnectionError as e:
+                # After all retries exhausted
+                span.record_exception(e)
+                logger.error(
+                    "llm_connection_error",
+                    provider=self.PROVIDER_NAME,
+                    model=model_to_use,
+                    error=str(e),
+                )
+                raise LLMProviderError(
+                    "Unable to connect to LLM service",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
     @retry(
         retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),
@@ -255,48 +266,59 @@ class OpenRouterProvider:
         """
         model_to_use = model or self._default_model
 
-        try:
-            result: str = await self._complete_history_with_resilience(
-                system_prompt=system_prompt,
-                messages=messages,
-                model=model_to_use,
-            )
-            return result
+        with tracer.start_as_current_span("llm.complete_with_history") as span:
+            span.set_attribute("llm.provider", self.PROVIDER_NAME)
+            span.set_attribute("llm.model", model_to_use)
+            span.set_attribute("llm.message_count", len(messages))
+            total_input_length = sum(len(m.get("content", "")) for m in messages)
+            span.set_attribute("llm.input_length", total_input_length)
 
-        except CircuitBreakerError as e:
-            logger.warning(
-                "circuit_breaker_open",
-                provider=self.PROVIDER_NAME,
-                model=model_to_use,
-            )
-            raise LLMProviderError(
-                "Service temporarily unavailable. Please try again in a moment.",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            try:
+                result: str = await self._complete_history_with_resilience(
+                    system_prompt=system_prompt,
+                    messages=messages,
+                    model=model_to_use,
+                )
+                span.set_attribute("llm.output_length", len(result))
+                return result
 
-        except APITimeoutError as e:
-            logger.warning(
-                "llm_timeout",
-                provider=self.PROVIDER_NAME,
-                model=model_to_use,
-                timeout_seconds=self._timeout,
-            )
-            raise LLMTimeoutError(
-                f"Request timed out after {self._timeout}s",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except CircuitBreakerError as e:
+                span.record_exception(e)
+                logger.warning(
+                    "circuit_breaker_open",
+                    provider=self.PROVIDER_NAME,
+                    model=model_to_use,
+                )
+                raise LLMProviderError(
+                    "Service temporarily unavailable. Please try again in a moment.",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
-        except APIConnectionError as e:
-            logger.error(
-                "llm_connection_error",
-                provider=self.PROVIDER_NAME,
-                model=model_to_use,
-                error=str(e),
-            )
-            raise LLMProviderError(
-                "Unable to connect to LLM service",
-                provider=self.PROVIDER_NAME,
-            ) from e
+            except APITimeoutError as e:
+                span.record_exception(e)
+                logger.warning(
+                    "llm_timeout",
+                    provider=self.PROVIDER_NAME,
+                    model=model_to_use,
+                    timeout_seconds=self._timeout,
+                )
+                raise LLMTimeoutError(
+                    f"Request timed out after {self._timeout}s",
+                    provider=self.PROVIDER_NAME,
+                ) from e
+
+            except APIConnectionError as e:
+                span.record_exception(e)
+                logger.error(
+                    "llm_connection_error",
+                    provider=self.PROVIDER_NAME,
+                    model=model_to_use,
+                    error=str(e),
+                )
+                raise LLMProviderError(
+                    "Unable to connect to LLM service",
+                    provider=self.PROVIDER_NAME,
+                ) from e
 
     @retry(
         retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),
@@ -341,7 +363,7 @@ class OpenRouterProvider:
 
             response = await self._client.chat.completions.create(
                 model=model,
-                messages=all_messages,  # type: ignore[arg-type]
+                messages=all_messages,
             )
 
             content = response.choices[0].message.content or ""

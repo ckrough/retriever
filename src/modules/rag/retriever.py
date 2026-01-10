@@ -7,9 +7,11 @@ import structlog
 from rank_bm25 import BM25Okapi
 
 from src.infrastructure.embeddings import EmbeddingProvider
+from src.infrastructure.observability import get_tracer
 from src.infrastructure.vectordb import RetrievalResult, VectorStore
 
 logger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 
 @dataclass
@@ -108,50 +110,66 @@ class HybridRetriever:
         Returns:
             List of retrieval results ordered by combined relevance.
         """
-        # Get semantic results (over-retrieve for better fusion)
-        semantic_k = min(top_k * 2, self._vector_store.count())
-        if semantic_k == 0:
-            return []
+        with tracer.start_as_current_span("retrieval.hybrid") as span:
+            span.set_attribute("retrieval.query_length", len(query))
+            span.set_attribute("retrieval.top_k", top_k)
 
-        query_embedding = await self._embeddings.embed(query)
-        semantic_results = await self._vector_store.query(
-            query_embedding, top_k=semantic_k
-        )
+            # Get semantic results (over-retrieve for better fusion)
+            semantic_k = min(top_k * 2, self._vector_store.count())
+            if semantic_k == 0:
+                span.set_attribute("retrieval.results_count", 0)
+                return []
 
-        logger.debug(
-            "hybrid_semantic_results",
-            count=len(semantic_results),
-            top_score=semantic_results[0].score if semantic_results else 0,
-        )
+            with tracer.start_as_current_span("retrieval.semantic"):
+                query_embedding = await self._embeddings.embed(query)
+                semantic_results = await self._vector_store.query(
+                    query_embedding, top_k=semantic_k
+                )
 
-        # Get keyword results
-        keyword_results = self._keyword_search(query, top_k=top_k * 2)
+            span.set_attribute("retrieval.semantic_count", len(semantic_results))
 
-        logger.debug(
-            "hybrid_keyword_results",
-            count=len(keyword_results),
-            top_score=keyword_results[0].score if keyword_results else 0,
-        )
+            logger.debug(
+                "hybrid_semantic_results",
+                count=len(semantic_results),
+                top_score=semantic_results[0].score if semantic_results else 0,
+            )
 
-        # Merge results using Reciprocal Rank Fusion
-        merged = self._reciprocal_rank_fusion(
-            semantic_results,
-            keyword_results,
-        )
+            # Get keyword results
+            with tracer.start_as_current_span("retrieval.keyword"):
+                keyword_results = self._keyword_search(query, top_k=top_k * 2)
 
-        # Return top_k results
-        final_results = merged[:top_k]
+            span.set_attribute("retrieval.keyword_count", len(keyword_results))
 
-        logger.info(
-            "hybrid_retrieval_complete",
-            query_length=len(query),
-            semantic_count=len(semantic_results),
-            keyword_count=len(keyword_results),
-            merged_count=len(merged),
-            returned_count=len(final_results),
-        )
+            logger.debug(
+                "hybrid_keyword_results",
+                count=len(keyword_results),
+                top_score=keyword_results[0].score if keyword_results else 0,
+            )
 
-        return final_results
+            # Merge results using Reciprocal Rank Fusion
+            merged = self._reciprocal_rank_fusion(
+                semantic_results,
+                keyword_results,
+            )
+
+            # Return top_k results
+            final_results = merged[:top_k]
+
+            span.set_attribute("retrieval.merged_count", len(merged))
+            span.set_attribute("retrieval.results_count", len(final_results))
+            if final_results:
+                span.set_attribute("retrieval.top_score", final_results[0].score)
+
+            logger.info(
+                "hybrid_retrieval_complete",
+                query_length=len(query),
+                semantic_count=len(semantic_results),
+                keyword_count=len(keyword_results),
+                merged_count=len(merged),
+                returned_count=len(final_results),
+            )
+
+            return final_results
 
     def _keyword_search(
         self,

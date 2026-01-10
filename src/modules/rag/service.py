@@ -9,6 +9,7 @@ import structlog
 from src.infrastructure.cache import SemanticCache
 from src.infrastructure.embeddings import EmbeddingProvider
 from src.infrastructure.llm import LLMProvider
+from src.infrastructure.observability import get_tracer
 from src.infrastructure.safety import (
     ConfidenceScorer,
     SafetyService,
@@ -27,6 +28,7 @@ from src.modules.rag.retriever import HybridRetriever, IndexedDocument
 from src.modules.rag.schemas import ChunkWithScore, IndexingResult, RAGResponse
 
 logger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 
 def _serialize_chunks(chunks: list[ChunkWithScore]) -> str:
@@ -135,190 +137,221 @@ class RAGService:
         Returns:
             RAGResponse with answer and retrieved chunks.
         """
-        # Check input safety first (if enabled)
-        if self._safety is not None:
-            safety_result = await self._safety.check_input(question)
-            if not safety_result.is_safe:
-                logger.warning(
-                    "rag_input_blocked",
-                    violation_type=safety_result.violation_type.value,
-                    question_length=len(question),
-                )
+        with tracer.start_as_current_span("rag.ask") as span:
+            span.set_attribute("rag.question_length", len(question))
+            span.set_attribute("rag.has_history", conversation_history is not None)
+            span.set_attribute(
+                "rag.history_length",
+                len(conversation_history) if conversation_history else 0,
+            )
+
+            # Check input safety first (if enabled)
+            if self._safety is not None:
+                safety_result = await self._safety.check_input(question)
+                if not safety_result.is_safe:
+                    span.set_attribute("rag.blocked", True)
+                    span.set_attribute(
+                        "rag.blocked_reason", safety_result.violation_type.value
+                    )
+                    logger.warning(
+                        "rag_input_blocked",
+                        violation_type=safety_result.violation_type.value,
+                        question_length=len(question),
+                    )
+                    return RAGResponse(
+                        answer=safety_result.message,
+                        chunks_used=[],
+                        question=question,
+                        confidence_level="low",
+                        confidence_score=0.0,
+                        blocked=True,
+                        blocked_reason=safety_result.violation_type.value,
+                    )
+
+            # Check semantic cache first (if enabled)
+            if self._cache is not None:
+                cached = await self._cache.get(question)
+                if cached is not None:
+                    span.set_attribute("rag.cache_hit", True)
+                    logger.info(
+                        "rag_cache_hit",
+                        question_length=len(question),
+                        similarity=cached.similarity_score,
+                    )
+                    return RAGResponse(
+                        answer=cached.answer,
+                        chunks_used=_deserialize_chunks(cached.chunks_json),
+                        question=question,
+                    )
+
+            span.set_attribute("rag.cache_hit", False)
+
+            # Check if we have any documents indexed
+            if self._store.count() == 0:
+                span.set_attribute("rag.no_documents", True)
+                logger.info("rag_no_documents", question_length=len(question))
+                if conversation_history:
+                    messages = conversation_history.copy()
+                    messages.append({"role": "user", "content": question})
+                    answer = await self._llm.complete_with_history(
+                        system_prompt=FALLBACK_SYSTEM_PROMPT,
+                        messages=messages,
+                    )
+                else:
+                    answer = await self._llm.complete(
+                        system_prompt=FALLBACK_SYSTEM_PROMPT,
+                        user_message=question,
+                    )
+                # Don't cache fallback responses (no context)
                 return RAGResponse(
-                    answer=safety_result.message,
+                    answer=answer,
                     chunks_used=[],
                     question=question,
-                    confidence_level="low",
-                    confidence_score=0.0,
-                    blocked=True,
-                    blocked_reason=safety_result.violation_type.value,
                 )
 
-        # Check semantic cache first (if enabled)
-        if self._cache is not None:
-            cached = await self._cache.get(question)
-            if cached is not None:
-                logger.info(
-                    "rag_cache_hit",
-                    question_length=len(question),
-                    similarity=cached.similarity_score,
+            # Retrieve relevant chunks (hybrid or semantic-only)
+            if self._retriever is not None:
+                # Use hybrid retrieval (semantic + keyword search with RRF)
+                span.set_attribute("rag.retrieval_type", "hybrid")
+                logger.debug(
+                    "rag_hybrid_retrieving",
+                    top_k=self._top_k,
+                    keyword_index_size=self._retriever.get_keyword_index_count(),
                 )
-                return RAGResponse(
-                    answer=cached.answer,
-                    chunks_used=_deserialize_chunks(cached.chunks_json),
-                    question=question,
-                )
+                results = await self._retriever.retrieve(question, top_k=self._top_k)
+            else:
+                # Fall back to semantic-only search
+                span.set_attribute("rag.retrieval_type", "semantic")
+                logger.debug("rag_embedding_question", question_length=len(question))
+                query_embedding = await self._embeddings.embed(question)
+                logger.debug("rag_retrieving", top_k=self._top_k)
+                results = await self._store.query(query_embedding, top_k=self._top_k)
 
-        # Check if we have any documents indexed
-        if self._store.count() == 0:
-            logger.info("rag_no_documents", question_length=len(question))
+            # Convert to ChunkWithScore for response
+            chunks_used = [
+                ChunkWithScore(
+                    content=r.content,
+                    source=r.metadata.get("source", "unknown"),
+                    section=r.metadata.get("section", ""),
+                    score=r.score,
+                    title=r.metadata.get("title", ""),
+                )
+                for r in results
+            ]
+
+            span.set_attribute("rag.chunks_retrieved", len(chunks_used))
+
+            # Build context for LLM
+            context_tuples = [
+                (r.content, r.metadata.get("source", "unknown"), r.score)
+                for r in results
+            ]
+            system_prompt = build_rag_prompt(context_tuples)
+
+            # Generate answer
+            logger.debug(
+                "rag_generating",
+                context_chunks=len(results),
+                question_length=len(question),
+                has_history=conversation_history is not None,
+                history_length=len(conversation_history) if conversation_history else 0,
+            )
+
             if conversation_history:
+                # Multi-turn: include conversation history
                 messages = conversation_history.copy()
                 messages.append({"role": "user", "content": question})
                 answer = await self._llm.complete_with_history(
-                    system_prompt=FALLBACK_SYSTEM_PROMPT,
+                    system_prompt=system_prompt,
                     messages=messages,
                 )
             else:
+                # Single-turn: no history
                 answer = await self._llm.complete(
-                    system_prompt=FALLBACK_SYSTEM_PROMPT,
+                    system_prompt=system_prompt,
                     user_message=question,
                 )
-            # Don't cache fallback responses (no context)
+
+            span.set_attribute("rag.answer_length", len(answer))
+
+            # Calculate confidence score
+            scores = [c.score for c in chunks_used]
+            chunk_texts = [c.content for c in chunks_used]
+            sources_used = list({c.source for c in chunks_used})
+
+            # Check for hallucination and get grounding ratio
+            grounding_ratio: float | None = None
+            if self._safety is not None and chunks_used:
+                hallucination_result = self._safety.check_hallucination(
+                    answer=answer,
+                    chunks=chunk_texts,
+                    sources=[c.source for c in chunks_used],
+                )
+                if not hallucination_result.is_safe:
+                    # Hallucination detected - return low confidence response
+                    span.set_attribute("rag.blocked", True)
+                    span.set_attribute(
+                        "rag.blocked_reason", SafetyViolationType.HALLUCINATION.value
+                    )
+                    logger.warning(
+                        "rag_hallucination_detected",
+                        question_length=len(question),
+                    )
+                    return RAGResponse(
+                        answer=hallucination_result.message,
+                        chunks_used=chunks_used,
+                        question=question,
+                        confidence_level="low",
+                        confidence_score=0.0,
+                        blocked=True,
+                        blocked_reason=SafetyViolationType.HALLUCINATION.value,
+                    )
+                # Get grounding ratio for confidence scoring
+                details = self._safety.get_hallucination_details(
+                    answer=answer,
+                    chunks=chunk_texts,
+                )
+                grounding_ratio = details.support_ratio
+
+            # Calculate confidence
+            confidence = self._confidence_scorer.score(
+                chunk_scores=scores,
+                grounding_ratio=grounding_ratio,
+            )
+
+            span.set_attribute("rag.confidence_level", confidence.level.value)
+            span.set_attribute("rag.confidence_score", confidence.score)
+            span.set_attribute("rag.sources_count", len(sources_used))
+
+            # Log quality metrics for observability
+            logger.info(
+                "rag_answer_generated",
+                question_length=len(question),
+                answer_length=len(answer),
+                chunks_used=len(chunks_used),
+                sources_used=sources_used,
+                top_score=max(scores) if scores else 0.0,
+                min_score=min(scores) if scores else 0.0,
+                avg_score=sum(scores) / len(scores) if scores else 0.0,
+                confidence_level=confidence.level.value,
+                confidence_score=confidence.score,
+            )
+
+            # Store in cache (only high/medium confidence answers with context)
+            if self._cache is not None and chunks_used and not confidence.needs_review:
+                await self._cache.set(
+                    question=question,
+                    answer=answer,
+                    chunks_json=_serialize_chunks(chunks_used),
+                )
+
             return RAGResponse(
                 answer=answer,
-                chunks_used=[],
+                chunks_used=chunks_used,
                 question=question,
+                confidence_level=confidence.level.value,
+                confidence_score=confidence.score,
             )
-
-        # Retrieve relevant chunks (hybrid or semantic-only)
-        if self._retriever is not None:
-            # Use hybrid retrieval (semantic + keyword search with RRF)
-            logger.debug(
-                "rag_hybrid_retrieving",
-                top_k=self._top_k,
-                keyword_index_size=self._retriever.get_keyword_index_count(),
-            )
-            results = await self._retriever.retrieve(question, top_k=self._top_k)
-        else:
-            # Fall back to semantic-only search
-            logger.debug("rag_embedding_question", question_length=len(question))
-            query_embedding = await self._embeddings.embed(question)
-            logger.debug("rag_retrieving", top_k=self._top_k)
-            results = await self._store.query(query_embedding, top_k=self._top_k)
-
-        # Convert to ChunkWithScore for response
-        chunks_used = [
-            ChunkWithScore(
-                content=r.content,
-                source=r.metadata.get("source", "unknown"),
-                section=r.metadata.get("section", ""),
-                score=r.score,
-                title=r.metadata.get("title", ""),
-            )
-            for r in results
-        ]
-
-        # Build context for LLM
-        context_tuples = [
-            (r.content, r.metadata.get("source", "unknown"), r.score) for r in results
-        ]
-        system_prompt = build_rag_prompt(context_tuples)
-
-        # Generate answer
-        logger.debug(
-            "rag_generating",
-            context_chunks=len(results),
-            question_length=len(question),
-            has_history=conversation_history is not None,
-            history_length=len(conversation_history) if conversation_history else 0,
-        )
-
-        if conversation_history:
-            # Multi-turn: include conversation history
-            messages = conversation_history.copy()
-            messages.append({"role": "user", "content": question})
-            answer = await self._llm.complete_with_history(
-                system_prompt=system_prompt,
-                messages=messages,
-            )
-        else:
-            # Single-turn: no history
-            answer = await self._llm.complete(
-                system_prompt=system_prompt,
-                user_message=question,
-            )
-
-        # Calculate confidence score
-        scores = [c.score for c in chunks_used]
-        chunk_texts = [c.content for c in chunks_used]
-        sources_used = list({c.source for c in chunks_used})
-
-        # Check for hallucination and get grounding ratio
-        grounding_ratio: float | None = None
-        if self._safety is not None and chunks_used:
-            hallucination_result = self._safety.check_hallucination(
-                answer=answer,
-                chunks=chunk_texts,
-                sources=[c.source for c in chunks_used],
-            )
-            if not hallucination_result.is_safe:
-                # Hallucination detected - return low confidence response
-                logger.warning(
-                    "rag_hallucination_detected",
-                    question_length=len(question),
-                )
-                return RAGResponse(
-                    answer=hallucination_result.message,
-                    chunks_used=chunks_used,
-                    question=question,
-                    confidence_level="low",
-                    confidence_score=0.0,
-                    blocked=True,
-                    blocked_reason=SafetyViolationType.HALLUCINATION.value,
-                )
-            # Get grounding ratio for confidence scoring
-            details = self._safety.get_hallucination_details(
-                answer=answer,
-                chunks=chunk_texts,
-            )
-            grounding_ratio = details.support_ratio
-
-        # Calculate confidence
-        confidence = self._confidence_scorer.score(
-            chunk_scores=scores,
-            grounding_ratio=grounding_ratio,
-        )
-
-        # Log quality metrics for observability
-        logger.info(
-            "rag_answer_generated",
-            question_length=len(question),
-            answer_length=len(answer),
-            chunks_used=len(chunks_used),
-            sources_used=sources_used,
-            top_score=max(scores) if scores else 0.0,
-            min_score=min(scores) if scores else 0.0,
-            avg_score=sum(scores) / len(scores) if scores else 0.0,
-            confidence_level=confidence.level.value,
-            confidence_score=confidence.score,
-        )
-
-        # Store in cache (only high/medium confidence answers with context)
-        if self._cache is not None and chunks_used and not confidence.needs_review:
-            await self._cache.set(
-                question=question,
-                answer=answer,
-                chunks_json=_serialize_chunks(chunks_used),
-            )
-
-        return RAGResponse(
-            answer=answer,
-            chunks_used=chunks_used,
-            question=question,
-            confidence_level=confidence.level.value,
-            confidence_score=confidence.score,
-        )
 
     async def index_document(self, file_path: Path) -> IndexingResult:
         """Index a document into the vector store.
@@ -329,104 +362,119 @@ class RAGService:
         Returns:
             IndexingResult with status and chunk count.
         """
-        try:
-            # Load the document
-            doc: LoadedDocument = load_document(file_path)
+        with tracer.start_as_current_span("rag.index_document") as span:
+            span.set_attribute("rag.file_path", str(file_path))
+            span.set_attribute("rag.file_name", file_path.name)
 
-            # Chunk the document
-            chunks = chunk_document(
-                doc.content,
-                source=doc.source,
-                config=self._chunking_config,
-                title=doc.title,
-            )
+            try:
+                # Load the document
+                doc: LoadedDocument = load_document(file_path)
+                span.set_attribute("rag.source", doc.source)
 
-            if not chunks:
+                # Chunk the document
+                chunks = chunk_document(
+                    doc.content,
+                    source=doc.source,
+                    config=self._chunking_config,
+                    title=doc.title,
+                )
+
+                if not chunks:
+                    span.set_attribute("rag.chunks_created", 0)
+                    return IndexingResult(
+                        source=doc.source,
+                        chunks_created=0,
+                        success=True,
+                    )
+
+                span.set_attribute("rag.chunks_to_embed", len(chunks))
+
+                # Generate embeddings for all chunks
+                logger.debug(
+                    "rag_embedding_chunks",
+                    source=doc.source,
+                    chunk_count=len(chunks),
+                )
+                contents = [chunk.content for chunk in chunks]
+                embeddings = await self._embeddings.embed_batch(contents)
+
+                # Create DocumentChunk objects for storage
+                doc_chunks = [
+                    DocumentChunk(
+                        id=f"{doc.source}:{chunk.position}:{uuid.uuid4().hex[:8]}",
+                        content=chunk.content,
+                        embedding=embedding,
+                        metadata=chunk.metadata,
+                    )
+                    for chunk, embedding in zip(chunks, embeddings, strict=True)
+                ]
+
+                # Store in vector DB
+                await self._store.add_chunks(doc_chunks)
+
+                # Track documents for keyword index
+                for doc_chunk in doc_chunks:
+                    self._indexed_docs.append(
+                        IndexedDocument(
+                            id=doc_chunk.id,
+                            content=doc_chunk.content,
+                            metadata=doc_chunk.metadata,
+                        )
+                    )
+
+                # Rebuild keyword index if hybrid retriever is enabled
+                if self._retriever is not None:
+                    self._retriever.build_keyword_index(self._indexed_docs)
+                    logger.debug(
+                        "rag_keyword_index_rebuilt",
+                        document_count=len(self._indexed_docs),
+                    )
+
+                span.set_attribute("rag.chunks_created", len(doc_chunks))
+                span.set_attribute("rag.success", True)
+
+                logger.info(
+                    "rag_document_indexed",
+                    source=doc.source,
+                    chunks_created=len(doc_chunks),
+                )
+
                 return IndexingResult(
                     source=doc.source,
-                    chunks_created=0,
+                    chunks_created=len(doc_chunks),
                     success=True,
                 )
 
-            # Generate embeddings for all chunks
-            logger.debug(
-                "rag_embedding_chunks",
-                source=doc.source,
-                chunk_count=len(chunks),
-            )
-            contents = [chunk.content for chunk in chunks]
-            embeddings = await self._embeddings.embed_batch(contents)
-
-            # Create DocumentChunk objects for storage
-            doc_chunks = [
-                DocumentChunk(
-                    id=f"{doc.source}:{chunk.position}:{uuid.uuid4().hex[:8]}",
-                    content=chunk.content,
-                    embedding=embedding,
-                    metadata=chunk.metadata,
+            except DocumentLoadError as e:
+                span.record_exception(e)
+                span.set_attribute("rag.success", False)
+                logger.error(
+                    "rag_load_error",
+                    file_path=str(file_path),
+                    error=str(e),
                 )
-                for chunk, embedding in zip(chunks, embeddings, strict=True)
-            ]
-
-            # Store in vector DB
-            await self._store.add_chunks(doc_chunks)
-
-            # Track documents for keyword index
-            for doc_chunk in doc_chunks:
-                self._indexed_docs.append(
-                    IndexedDocument(
-                        id=doc_chunk.id,
-                        content=doc_chunk.content,
-                        metadata=doc_chunk.metadata,
-                    )
+                return IndexingResult(
+                    source=file_path.name,
+                    chunks_created=0,
+                    success=False,
+                    error_message=str(e),
                 )
 
-            # Rebuild keyword index if hybrid retriever is enabled
-            if self._retriever is not None:
-                self._retriever.build_keyword_index(self._indexed_docs)
-                logger.debug(
-                    "rag_keyword_index_rebuilt",
-                    document_count=len(self._indexed_docs),
+            except Exception as e:
+                span.record_exception(e)
+                span.set_attribute("rag.success", False)
+                logger.error(
+                    "rag_index_error",
+                    file_path=str(file_path),
+                    error=str(e),
+                    error_type=type(e).__name__,
                 )
-
-            logger.info(
-                "rag_document_indexed",
-                source=doc.source,
-                chunks_created=len(doc_chunks),
-            )
-
-            return IndexingResult(
-                source=doc.source,
-                chunks_created=len(doc_chunks),
-                success=True,
-            )
-
-        except DocumentLoadError as e:
-            logger.error(
-                "rag_load_error",
-                file_path=str(file_path),
-                error=str(e),
-            )
-            return IndexingResult(
-                source=file_path.name,
-                chunks_created=0,
-                success=False,
-                error_message=str(e),
-            )
-
-        except Exception as e:
-            logger.error(
-                "rag_index_error",
-                file_path=str(file_path),
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            return IndexingResult(
-                source=file_path.name,
-                chunks_created=0,
-                success=False,
-                error_message=f"Indexing failed: {e}",
-            )
+                return IndexingResult(
+                    source=file_path.name,
+                    chunks_created=0,
+                    success=False,
+                    error_message=f"Indexing failed: {e}",
+                )
 
     async def index_all_documents(self, documents_path: Path) -> list[IndexingResult]:
         """Index all documents in a directory.
