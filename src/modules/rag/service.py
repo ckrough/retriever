@@ -305,12 +305,31 @@ class RAGService:
         )
 
         # Store in cache (only high/medium confidence answers with context)
-        if self._cache is not None and chunks_used and not confidence.needs_review:
-            await self._cache.set(
-                question=question,
-                answer=answer,
-                chunks_json=_serialize_chunks(chunks_used),
-            )
+        if self._cache is not None:
+            if not chunks_used:
+                logger.info(
+                    "rag_cache_skip_no_chunks",
+                    question_length=len(question),
+                )
+            elif confidence.needs_review:
+                logger.info(
+                    "rag_cache_skip_low_confidence",
+                    question_length=len(question),
+                    confidence_level=confidence.level.value,
+                    confidence_score=confidence.score,
+                )
+            else:
+                await self._cache.set(
+                    question=question,
+                    answer=answer,
+                    chunks_json=_serialize_chunks(chunks_used),
+                )
+                logger.info(
+                    "rag_cache_stored",
+                    question_length=len(question),
+                    answer_length=len(answer),
+                    confidence_level=confidence.level.value,
+                )
 
         return RAGResponse(
             answer=answer,

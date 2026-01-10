@@ -99,7 +99,7 @@ class ChromaSemanticCache:
         # Check if we got a result
         ids_result = results.get("ids")
         if not ids_result or not ids_result[0]:
-            logger.debug("cache_miss_no_results", question_length=len(question))
+            logger.info("cache_miss_no_results", question_length=len(question))
             return None
 
         # Get the distance and convert to similarity
@@ -112,7 +112,7 @@ class ChromaSemanticCache:
 
         # Check threshold
         if similarity < self._similarity_threshold:
-            logger.debug(
+            logger.info(
                 "cache_miss_below_threshold",
                 similarity=similarity,
                 threshold=self._similarity_threshold,
@@ -136,7 +136,7 @@ class ChromaSemanticCache:
                     created_at = created_at.replace(tzinfo=UTC)
                 age_hours = (datetime.now(UTC) - created_at).total_seconds() / 3600
                 if age_hours > self._ttl_hours:
-                    logger.debug(
+                    logger.info(
                         "cache_miss_expired",
                         age_hours=age_hours,
                         ttl_hours=self._ttl_hours,
@@ -205,7 +205,7 @@ class ChromaSemanticCache:
             ],
         )
 
-        logger.debug(
+        logger.info(
             "cache_set",
             question_length=len(question),
             answer_length=len(answer),

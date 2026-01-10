@@ -1,5 +1,6 @@
 """Tests for semantic cache."""
 
+import shutil
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -468,3 +469,127 @@ class TestRAGServiceWithoutCache:
         """Clear cache should be a no-op when cache is None."""
         # Should not raise
         await rag_service_no_cache.clear_cache()
+
+
+class TestCacheEndToEndFlow:
+    """End-to-end tests verifying the complete cache flow."""
+
+    @pytest.fixture
+    def mock_llm(self) -> MagicMock:
+        """Create a mock LLM provider."""
+        llm = MagicMock()
+        llm.complete = AsyncMock(return_value="Dogs make great pets for volunteers.")
+        return llm
+
+    @pytest.fixture
+    def mock_embeddings(self) -> MagicMock:
+        """Create a mock embedding provider that returns consistent embeddings."""
+        embeddings = MagicMock()
+        # Return same embedding for similar questions to simulate cache hit
+        embeddings.embed = AsyncMock(return_value=[0.1] * 1536)
+        embeddings.embed_batch = AsyncMock(return_value=[[0.1] * 1536])
+        embeddings.dimensions = 1536
+        return embeddings
+
+    @pytest.fixture
+    def real_cache(self, mock_embeddings: MagicMock) -> ChromaSemanticCache:
+        """Create a real semantic cache for end-to-end testing."""
+        tmpdir = tempfile.mkdtemp()
+        cache = ChromaSemanticCache(
+            embedding_provider=mock_embeddings,
+            persist_path=Path(tmpdir),
+            similarity_threshold=0.95,
+            ttl_hours=24,
+        )
+        yield cache
+        # Cleanup after tests complete
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    @pytest.fixture
+    def mock_vector_store(self) -> MagicMock:
+        """Create a mock vector store with indexed documents."""
+        store = MagicMock()
+        store.count = MagicMock(return_value=5)  # Simulate indexed documents
+        store.query = AsyncMock(
+            return_value=[
+                RetrievalResult(
+                    id="chunk1",
+                    content="Dogs are wonderful companions for shelter volunteers.",
+                    metadata={"source": "volunteer-guide.md", "section": "Pets"},
+                    score=0.92,  # High enough for medium/high confidence
+                ),
+                RetrievalResult(
+                    id="chunk2",
+                    content="Volunteers should always be gentle with animals.",
+                    metadata={"source": "volunteer-guide.md", "section": "Guidelines"},
+                    score=0.88,
+                ),
+            ]
+        )
+        store.clear = AsyncMock()
+        return store
+
+    async def test_full_cache_flow_miss_then_hit(
+        self,
+        mock_llm: MagicMock,
+        mock_embeddings: MagicMock,
+        mock_vector_store: MagicMock,
+        real_cache: ChromaSemanticCache,
+    ) -> None:
+        """Test complete cache flow: miss on first query, hit on second."""
+        # Create RAG service with real cache
+        rag_service = RAGService(
+            llm_provider=mock_llm,
+            embedding_provider=mock_embeddings,
+            vector_store=mock_vector_store,
+            semantic_cache=real_cache,
+        )
+
+        # Verify cache starts empty
+        assert real_cache.count() == 0
+
+        # First query - should be a cache miss, LLM called
+        question = "What pets are good for volunteers?"
+        response1 = await rag_service.ask(question)
+
+        assert response1.answer == "Dogs make great pets for volunteers."
+        mock_llm.complete.assert_called_once()  # LLM was called
+
+        # Verify answer was cached
+        assert real_cache.count() == 1
+
+        # Reset LLM mock to verify it's not called on cache hit
+        mock_llm.complete.reset_mock()
+
+        # Second query with same question - should be a cache hit
+        response2 = await rag_service.ask(question)
+
+        assert response2.answer == "Dogs make great pets for volunteers."
+        mock_llm.complete.assert_not_called()  # LLM was NOT called (cache hit)
+
+        # Cache count should still be 1 (no duplicate)
+        assert real_cache.count() == 1
+
+    async def test_cache_not_stored_when_no_chunks(
+        self,
+        mock_llm: MagicMock,
+        mock_embeddings: MagicMock,
+        real_cache: ChromaSemanticCache,
+    ) -> None:
+        """Test that cache is not populated when no documents are indexed."""
+        # Create vector store with no documents
+        empty_store = MagicMock()
+        empty_store.count = MagicMock(return_value=0)
+
+        rag_service = RAGService(
+            llm_provider=mock_llm,
+            embedding_provider=mock_embeddings,
+            vector_store=empty_store,
+            semantic_cache=real_cache,
+        )
+
+        # Query should work but not cache (no indexed documents)
+        await rag_service.ask("What pets are good?")
+
+        # Cache should remain empty (fallback responses not cached)
+        assert real_cache.count() == 0
