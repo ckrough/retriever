@@ -51,6 +51,7 @@ def get_llm_provider(
         timeout_seconds=settings.llm_timeout_seconds,
         circuit_breaker_fail_max=settings.circuit_breaker_fail_max,
         circuit_breaker_timeout=settings.circuit_breaker_timeout,
+        enable_prompt_caching=settings.llm_enable_prompt_caching,
     )
 
 
