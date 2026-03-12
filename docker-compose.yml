@@ -1,39 +1,40 @@
 services:
-  retriever:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-
-    container_name: retriever
-
     ports:
       - "8000:8000"
-
-    # Load environment variables from .env file
-    # Create .env file from .env.example and set your API keys
     env_file:
       - .env
-
-    # Named volumes for data persistence
-    # Data survives container restarts and rebuilds
+    environment:
+      - DEBUG=true
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
-      - retriever-data:/app/data
-      - retriever-documents:/app/documents
-
-    # Health check configuration
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-    # Restart policy
+      - ./documents:/app/documents:ro
     restart: unless-stopped
 
-# Named volumes for persistent data
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: retriever
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d retriever"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # frontend: placeholder — Phase 2
+
 volumes:
-  retriever-data:
-    driver: local
-  retriever-documents:
-    driver: local
+  postgres_data:

@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## [Unreleased] — Stack Migration
+
+### Added
+- `backend/` — standalone uv Python project (`retriever` package, Python 3.13+)
+- FastAPI app with `/health` endpoint, CORS middleware (explicit origins, no wildcards)
+- pydantic-settings `Settings` with `SecretStr` for all secrets, wildcard-origin validator
+- Cloudflare AI Gateway computed `ai_gateway_base_url` field
+- structlog JSON logging + OpenTelemetry tracing bootstrap (console exporter in dev)
+- `docker-compose.yml` — backend + pgvector/pg17 Postgres
+- `docker-compose.test.yml` — ephemeral test Postgres (tmpfs, port 5433)
+- `.env.example` updated to new stack schema
+
 ## v1.1.0 (2025-12-27)
 
 ### Bug Fixes
