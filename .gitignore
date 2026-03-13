@@ -10,8 +10,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
+# Python venv lib (not frontend/src/lib)
+/lib/
+backend/lib/
 parts/
 sdist/
 var/
@@ -59,3 +61,14 @@ data/
 
 # Knowledge Documents (root folder only)
 /documents/
+
+# Frontend
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/.wrangler/
+frontend/.env
+frontend/test-results/
+frontend/playwright-report/
+
+# npm local cache (used during builds to avoid writing outside project)
+tmp/
