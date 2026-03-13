@@ -5,6 +5,14 @@
 ## [Unreleased] — Stack Migration
 
 ### Added
+- **Phase 4 — Auth (JWKS-based JWT validation)** (`backend/`)
+  - `retriever.modules.auth.JwksValidator` — RS256 JWT decode via Supabase JWKS endpoint (`PyJWT[crypto]`)
+  - `require_auth` FastAPI dependency — validates Bearer token, returns `AuthUser` dataclass
+  - `require_admin` FastAPI dependency — gates routes on `app_metadata.is_admin`
+  - `AuthUser` frozen dataclass: `sub`, `email`, `is_admin`
+  - `PyJWKClient` key caching (300 s TTL) without `lru_cache` — Supabase key rotations picked up without process restart
+  - Missing `sub` claim raises 401 (not unhandled 500)
+  - 8 unit tests (no live Supabase required): valid/expired/bad-sig tokens, missing auth 401, non-admin 403, admin 200
 - **Phase 3 — Database layer** (`backend/`)
   - SQLAlchemy 2.0 async models: `User`, `Message`, `Document` with `tenant_id` on all tables
   - `PgVectorStore` — HNSW cosine search + GIN full-text index via pgvector 0.4

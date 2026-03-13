@@ -24,6 +24,7 @@ dependencies = [
     "asyncpg>=0.30",
     "alembic>=1.14",
     "pgvector>=0.3",
+    "pyjwt[crypto]>=2.10",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,7 @@ dev = [
     "mypy>=1.13",
     "ruff>=0.8",
     "pip-audit>=2.7",
+    "respx>=0.21",
 ]
 
 [tool.hatch.build.targets.wheel]
