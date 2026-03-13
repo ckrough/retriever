@@ -8,6 +8,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI-powered Q&A system for shelter volunteers, using RAG to answer questions from policy/procedure documents.
 
+## Issue Tracking (Beads)
+
+This repository uses [Beads](https://github.com/steveyegge/beads) for issue tracking, with a **redirect** to the shared database in `~/Documents/professional/.beads/`.
+
+**Database:** Shared `professional` database (prefix: `prof-`)
+**Label:** `apprtvr` (identifies Retriever issues within the shared database)
+
+### Creating Issues
+
+Every issue requires the `apprtvr` label plus a type label:
+
+```bash
+bd create "Add user authentication" -l apprtvr -l docs
+bd create "Fix chat timeout bug" -l apprtvr -l tooling
+
 **Architecture:** Modular monolith with clean architecture principles (see [Documentation Index](#documentation-index) for targeted docs)
 
 **Tech Stack:**
