@@ -5,6 +5,13 @@
 ## [Unreleased] — Stack Migration
 
 ### Added
+- **Phase 3 — Database layer** (`backend/`)
+  - SQLAlchemy 2.0 async models: `User`, `Message`, `Document` with `tenant_id` on all tables
+  - `PgVectorStore` — HNSW cosine search + GIN full-text index via pgvector 0.4
+  - `PgSemanticCache` — similarity-threshold cache backed by pgvector
+  - FastAPI session DI (`get_session`) with auto-commit/rollback
+  - 4 Alembic migrations: initial schema → vector storage → semantic cache → `updated_at` trigger
+  - 32 tests (22 unit + 9 integration + 1 edge case), 91% coverage
 - `frontend/` — SvelteKit + Svelte 5 runes + Skeleton UI v3 + Tailwind 4 skeleton
   - Cloudflare Pages adapter (`@sveltejs/adapter-cloudflare`)
   - Skeleton UI `cerberus` theme with AppBar layout

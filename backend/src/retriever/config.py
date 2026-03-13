@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # GCP
     gcp_project_id: str = ""
 
+    # Database
+    database_require_ssl: bool = False  # True in production (Supabase / Cloud Run)
+
     # App
     debug: bool = False
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]

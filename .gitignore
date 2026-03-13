@@ -72,3 +72,6 @@ frontend/playwright-report/
 
 # npm local cache (used during builds to avoid writing outside project)
 tmp/
+
+# tmp ignore for beads symlink
+.beads

@@ -9,7 +9,6 @@ services:
       - .env
     environment:
       - DEBUG=true
-      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
     depends_on:
       postgres:
         condition: service_healthy
