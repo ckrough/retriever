@@ -8,9 +8,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI-powered Q&A system for shelter volunteers, using RAG to answer questions from policy/procedure documents.
 
-**Architecture:** Modular monolith with clean architecture principles (see [Documentation Index](#documentation-index) for targeted docs)
+## Issue Tracking (Beads)
 
-**Tech Stack:**
+This repository uses [Beads](https://github.com/steveyegge/beads) for issue tracking, with a **redirect** to the shared database in `~/Documents/professional/.beads/`.
+
+**Database:** Shared `professional` database (prefix: `prof-`)
+**Label:** `apprtvr` (identifies Retriever issues within the shared database)
+
+### Creating Issues
+
+Every issue requires the `apprtvr` label plus a type label:
+
+```bash
+bd create "Add user authentication" -l apprtvr -l docs
+bd create "Fix chat timeout bug" -l apprtvr -l tooling
+```
+
+**Architecture:** Modular monolith (old) → Cloud-native microservices (new migration in progress)
+
+### New Stack (active development — `backend/`, `frontend/`)
+- **Backend:** Python 3.13+, FastAPI, Pydantic 2.x, SQLAlchemy 2.0 async
+- **LLM:** OpenRouter via Cloudflare AI Gateway (OpenAI-compatible API)
+- **Vector DB:** Supabase Postgres + pgvector (HNSW cosine + GIN full-text)
+- **Frontend:** SvelteKit + Svelte 5 runes + Skeleton UI v4
+- **Auth:** Supabase Auth / JWKS (RS256 JWT), RLS
+- **Observability:** structlog (JSON) + OpenTelemetry
+- **Deploy:** Cloud Run (backend), Cloudflare Pages (frontend)
+
+### Old Stack (frozen — `src/`, do not modify until Phase 10 cleanup)
 - Python 3.13+, FastAPI, Pydantic 2.x
 - LLM: OpenRouter (Claude via OpenAI-compatible API)
 - Vector DB: Chroma (embedded)
@@ -18,6 +43,34 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 - Database: SQLite
 
 ## Commands
+
+### New Backend (run from `backend/`)
+
+```bash
+# Install dependencies (dev)
+uv sync --extra dev
+
+# Run development server
+uv run uvicorn retriever.main:app --reload --port 8000
+
+# Linting and formatting
+uv run ruff check src/ tests/ --fix
+uv run ruff format src/ tests/
+
+# Type checking (strict mode required — use python -m mypy, NOT uv run mypy)
+uv run python -m mypy src/ --strict
+
+# Run tests with coverage (80% minimum)
+uv run python -m pytest tests/ --cov=src/retriever --cov-report=term-missing --cov-fail-under=80
+
+# Security audit
+uv run pip-audit
+
+# All quality checks (run before PR)
+uv run ruff check src/ tests/ --fix && uv run ruff format src/ tests/ && uv run python -m mypy src/ --strict && uv run python -m pytest tests/ --cov=src/retriever --cov-fail-under=80
+```
+
+### Old Monolith (legacy — run from repo root)
 
 ```bash
 # Install dependencies (dev)
@@ -45,22 +98,59 @@ ruff check src/ tests/ --fix && ruff format src/ tests/ && mypy src/ --strict &&
 
 ## Project Structure
 
+### Monorepo Layout
+
 ```
-src/
-├── main.py                 # FastAPI app entry point
-├── config.py               # Settings via pydantic-settings
-├── modules/                # Business modules (self-contained)
-│   ├── auth/               # Authentication
-│   ├── rag/                # RAG/Q&A pipeline
-│   └── documents/          # Document management
-├── infrastructure/         # Shared technical concerns
-│   ├── llm/                # LLM provider abstraction (Protocol-based)
-│   ├── vectordb/           # Vector DB abstraction
-│   ├── observability/      # Sentry + structlog
-│   └── safety/             # Content moderation
-├── api/                    # API layer (routes, middleware, errors)
-└── web/                    # Server-rendered frontend (templates)
+retriever/
+├── backend/                # New Python backend (active development)
+│   ├── src/retriever/      # Application source
+│   ├── tests/              # Backend tests
+│   └── pyproject.toml      # uv-managed dependencies
+├── frontend/               # New SvelteKit frontend (active development)
+│   ├── src/                # SvelteKit source
+│   └── package.json
+├── src/                    # OLD monolith (frozen — do not touch until Phase 10)
+└── docs/                   # Architecture docs and ADRs
 ```
+
+### New Backend Structure (`backend/src/retriever/`)
+
+```
+retriever/
+├── config.py               # pydantic-settings; ai_gateway_base_url computed field
+├── main.py                 # FastAPI app, /health, CORS
+├── models/                 # SQLAlchemy 2.0 async: User, Message, Document
+├── infrastructure/
+│   ├── cache/              # PgSemanticCache (pgvector cosine similarity)
+│   ├── database/           # async session factory
+│   ├── embeddings/         # OpenAIEmbeddingProvider (via AI Gateway)
+│   ├── llm/                # OpenRouterProvider + FallbackLLMProvider (via AI Gateway)
+│   ├── observability/      # structlog JSON + OTel console exporter
+│   └── vectordb/           # PgVectorStore (HNSW cosine + GIN full-text)
+└── modules/
+    └── auth/               # JwksValidator, require_auth, require_admin
+```
+
+## Backend Gotchas
+
+These are non-obvious issues discovered during the stack migration:
+
+**mypy invocation:** Always use `uv run python -m mypy`, not `uv run mypy`. The `mypy` binary is not on PATH in the uv venv; `python -m mypy` is the reliable path.
+
+**aiobreaker mypy override:** `aiobreaker` has no type stubs. Using `ignore_missing_imports = true` alone is insufficient — set `follow_imports = "skip"` in the override block:
+```toml
+[[tool.mypy.overrides]]
+module = "aiobreaker"
+follow_imports = "skip"
+```
+
+**tenacity must NOT share the aiobreaker override:** `tenacity` ships `py.typed`. If you add it to the same override as aiobreaker, mypy silently drops type inference for `@retry` decorators, causing false-positive errors.
+
+**Duplicate dependency sections in pyproject.toml:** There are two dev dependency sections — `[project.optional-dependencies].dev` (pip-compatible) and `[dependency-groups].dev` (uv-native). These are intentionally kept until Phase 10 consolidation. Do not remove either one now.
+
+**AI Gateway routing:** `settings.ai_gateway_base_url` is a computed field. If `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_GATEWAY_ID` are set, it routes through Cloudflare AI Gateway; otherwise it falls back to OpenRouter directly. All LLM and embedding providers must use this field, not hardcoded URLs.
+
+**File upload decision (Phase 7):** Ephemeral FS (process-and-discard) vs Supabase Storage (persist raw file) is still open. Ask user before implementing `/documents/upload`.
 
 ## Git Workflow: GitHub Flow
 
@@ -174,7 +264,7 @@ Before opening a PR:
 ## Key Patterns
 
 ### LLM Provider Abstraction
-Use Protocol-based interface for swappable LLM providers:
+Use Protocol-based interface for swappable LLM providers. Providers receive `base_url` at construction time from `settings.ai_gateway_base_url`:
 
 ```python
 class LLMProvider(Protocol):
@@ -186,20 +276,27 @@ class LLMProvider(Protocol):
     ) -> str: ...
 ```
 
-### Module Structure
-Each module in `src/modules/` is self-contained:
+Construction pattern:
+```python
+provider = OpenRouterProvider(
+    api_key=settings.openrouter_api_key,
+    base_url=settings.ai_gateway_base_url,  # routes via Cloudflare if configured
+)
+```
+
+### Module Structure (new backend)
+Each module in `backend/src/retriever/modules/` is self-contained:
 ```
 module_name/
 ├── __init__.py
 ├── routes.py       # FastAPI routes
 ├── services.py     # Business logic
-├── schemas.py      # Pydantic models
-├── models.py       # Domain models
-└── repos.py        # Data access (if needed)
+├── schemas.py      # Pydantic models (request/response)
+└── repos.py        # Data access via SQLAlchemy async session
 ```
 
 ### Configuration
-Use `pydantic-settings` for all configuration. Environment variables override defaults.
+Use `pydantic-settings` for all configuration. Environment variables override defaults. Computed fields derive values from primitives (e.g., `ai_gateway_base_url` from account/gateway IDs).
 
 ## Documentation Index
 
