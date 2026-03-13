@@ -5,6 +5,16 @@
 ## [Unreleased] — Stack Migration
 
 ### Added
+- **Phase 5 — LLM Gateway (Cloudflare AI Gateway)** (`backend/`)
+  - `retriever.infrastructure.llm` — `OpenRouterProvider` routes all LLM calls through `settings.ai_gateway_base_url` (Cloudflare AI Gateway when configured, OpenRouter otherwise)
+  - `FallbackLLMProvider` — model degradation fallback with automatic retry on primary failure
+  - `LLMProvider` Protocol — swappable backends without changing business logic
+  - `retriever.infrastructure.embeddings` — `OpenAIEmbeddingProvider` routes embedding calls through AI Gateway
+  - `EmbeddingProvider` Protocol — pluggable embedding backends
+  - Both providers include circuit breaker (`aiobreaker`) + retry (`tenacity`) resilience patterns
+  - Config additions: `default_llm_model`, `default_embedding_model`, `llm_timeout_seconds`
+  - `aiobreaker` mypy override added (`follow_imports = "skip"`, no upstream stubs)
+  - 72 tests passing, 86% coverage
 - **Phase 4 — Auth (JWKS-based JWT validation)** (`backend/`)
   - `retriever.modules.auth.JwksValidator` — RS256 JWT decode via Supabase JWKS endpoint (`PyJWT[crypto]`)
   - `require_auth` FastAPI dependency — validates Bearer token, returns `AuthUser` dataclass

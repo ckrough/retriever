@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     # Database
     database_require_ssl: bool = False  # True in production (Supabase / Cloud Run)
 
+    # LLM
+    default_llm_model: str = "anthropic/claude-sonnet-4"
+    default_embedding_model: str = "openai/text-embedding-3-small"
+    llm_timeout_seconds: float = 30.0
+
     # App
     debug: bool = False
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
