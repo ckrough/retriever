@@ -70,6 +70,25 @@ uv run pip-audit
 uv run ruff check src/ tests/ --fix && uv run ruff format src/ tests/ && uv run python -m mypy src/ --strict && uv run python -m pytest tests/ --cov=src/retriever --cov-fail-under=80
 ```
 
+### New Frontend (run from `frontend/`)
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Type checking (TypeScript + Svelte)
+npm run check
+
+# Production build
+npm run build
+
+# E2E tests (Playwright — requires build first)
+npm run test:e2e
+```
+
 ### Old Monolith (legacy — run from repo root)
 
 ```bash
@@ -111,6 +130,41 @@ retriever/
 │   └── package.json
 ├── src/                    # OLD monolith (frozen — do not touch until Phase 10)
 └── docs/                   # Architecture docs and ADRs
+```
+
+### New Frontend Structure (`frontend/src/`)
+
+```
+src/
+├── hooks.server.ts                 # Supabase SSR auth + route guards
+├── app.d.ts                        # App.Locals, App.PageData type augmentation
+├── app.css                         # Tailwind v4 + Skeleton cerberus theme
+├── lib/
+│   ├── supabase.ts                 # createBrowserClient factory
+│   ├── server/supabase.ts          # createSupabaseServerClient factory
+│   ├── api/
+│   │   ├── types.ts                # TypeScript interfaces (mirrors backend Pydantic)
+│   │   └── client.ts               # RetrieverApi class (typed HTTP client)
+│   └── components/
+│       ├── ChatMessage.svelte      # Message bubble (user/assistant)
+│       ├── ChatInput.svelte        # Textarea + send (Enter/Shift+Enter)
+│       ├── ConfidenceBadge.svelte   # RAG confidence pill (high/medium/low)
+│       ├── SourceCitation.svelte    # Expandable source chunks
+│       ├── ClearHistoryButton.svelte # Clear with confirmation
+│       ├── DocumentList.svelte      # Table (desktop) / cards (mobile)
+│       ├── DocumentUpload.svelte    # File input + validation
+│       └── ErrorAlert.svelte        # Reusable error display
+├── routes/
+│   ├── +layout.svelte              # AppBar, nav, auth state listener
+│   ├── +layout.server.ts           # Pass session/user/cookies to client
+│   ├── +layout.ts                  # Browser/server Supabase client
+│   ├── +page.svelte                # Landing (redirect to /chat if authed)
+│   ├── +error.svelte               # Global error page
+│   ├── login/                      # Email+password form action
+│   ├── logout/                     # POST → signOut + redirect
+│   ├── chat/                       # RAG Q&A + history + citations
+│   └── admin/                      # Document upload/list/delete (admin only)
+└── tests/e2e/                      # Playwright tests
 ```
 
 ### New Backend Structure (`backend/src/retriever/`)
@@ -155,6 +209,18 @@ follow_imports = "skip"
 **OTel exporter selection (Phase 6):** `tracing.py` auto-selects exporter: GCP Cloud Trace (`gcp_project_id` set) → OTLP/gRPC (`OTEL_EXPORTER_OTLP_ENDPOINT` set, for Jaeger) → Console (debug) → no-op. GCP exporter gracefully falls through if credentials are unavailable (local dev without ADC).
 
 **Langfuse @observe() is a no-op without credentials:** The decorator is always imported but only sends traces when `langfuse_secret_key`, `langfuse_public_key`, and `langfuse_host` are all set. Safe to ignore in local dev.
+
+## Frontend Gotchas
+
+**Svelte 5 runes only:** Use `$state`, `$derived`, `$effect`, `$props`. No `writable()` stores. Skeleton v1 uses snippet syntax for slots (`{#snippet lead()}...{/snippet}`).
+
+**Supabase SSR auth pattern:** `hooks.server.ts` uses `getUser()` (server-verified) not `getSession()` (unverified cookie). The `safeGetSession` helper on `event.locals` does both. `+layout.ts` creates browser client on client-side, server client on server-side via `isBrowser()`.
+
+**No registration UI:** Volunteers are created by admins in Supabase dashboard. Frontend only has login.
+
+**API client token:** `RetrieverApi` takes `data.session?.access_token` from the Supabase session. Token is automatically refreshed by the auth state listener in `+layout.svelte`.
+
+**wrangler log permission error:** `npm run check` and `npm run build` emit EPERM errors for wrangler log files — these are harmless and do not affect build/check results.
 
 ## Git Workflow: GitHub Flow
 

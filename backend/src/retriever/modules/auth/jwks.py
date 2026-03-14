@@ -21,6 +21,6 @@ class JwksValidator:
         return jwt.decode(
             token,
             signing_key.key,
-            algorithms=["RS256"],
+            algorithms=["RS256", "ES256"],
             options={"verify_aud": False},  # Supabase omits aud by default
         )

@@ -87,6 +87,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan: startup and shutdown."""
     logger = structlog.get_logger(__name__)
     logger.info("retriever.startup")
+
+    # Wire up DocumentService with RAG pipeline providers
+    from retriever.modules.documents.repos import DocumentRepository
+    from retriever.modules.documents.routes import configure_document_service
+    from retriever.modules.documents.services import DocumentService
+    from retriever.modules.rag.dependencies import (
+        get_rag_service,
+        get_semantic_cache,
+        get_session_factory,
+        get_vector_store,
+    )
+
+    session_factory = get_session_factory()
+    doc_repo = DocumentRepository(session_factory)
+    doc_service = DocumentService(
+        document_repo=doc_repo,
+        rag_service=get_rag_service(),
+        vector_store=get_vector_store(),
+        semantic_cache=get_semantic_cache(),
+    )
+    configure_document_service(doc_service)
+    logger.info("retriever.document_service_configured")
+
     yield
     flush_langfuse()
     logger.info("retriever.shutdown")

@@ -191,6 +191,9 @@ class DocumentService:
                 result.error_message or "Indexing failed with unknown error"
             )
 
+        # 8. Mark as indexed
+        await self._repo.mark_indexed(document.id, tenant_id)
+
         logger.info(
             "document.uploaded",
             document_id=str(document.id),

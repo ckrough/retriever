@@ -19,7 +19,7 @@ def _get_validator() -> JwksValidator:
     settings = get_settings()
     if not settings.supabase_url:
         raise RuntimeError("SUPABASE_URL is not configured — cannot validate JWTs")
-    jwks_url = f"{settings.supabase_url}/.well-known/jwks.json"
+    jwks_url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
     return JwksValidator(jwks_url)
 
 

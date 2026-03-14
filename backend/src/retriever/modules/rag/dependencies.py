@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from retriever.config import get_settings
 from retriever.infrastructure.cache.pg_cache import PgSemanticCache
 from retriever.infrastructure.database.session import _get_factory
+from retriever.models.user import DEFAULT_TENANT_ID
 from retriever.infrastructure.embeddings.openai import OpenAIEmbeddingProvider
 from retriever.infrastructure.llm.fallback import FallbackLLMProvider
 from retriever.infrastructure.llm.openrouter import OpenRouterProvider
@@ -37,14 +38,25 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 def get_embedding_provider() -> OpenAIEmbeddingProvider:
     """Create an embedding provider from settings.
 
+    Uses AI Gateway URL when Cloudflare is configured, otherwise
+    falls back to OpenAI directly (not OpenRouter, which doesn't
+    support the embeddings endpoint with the same auth).
+
     Returns:
         Configured OpenAI embedding provider.
     """
     settings = get_settings()
+    use_gateway = bool(
+        settings.cloudflare_account_id and settings.cloudflare_gateway_id
+    )
+    base_url = settings.ai_gateway_base_url if use_gateway else "https://api.openai.com/v1"
+    model = settings.default_embedding_model
+    if not use_gateway and model.startswith("openai/"):
+        model = model.removeprefix("openai/")
     return OpenAIEmbeddingProvider(
         api_key=settings.openai_api_key.get_secret_value(),
-        base_url=settings.ai_gateway_base_url,
-        model=settings.default_embedding_model,
+        base_url=base_url,
+        model=model,
     )
 
 
@@ -154,6 +166,7 @@ def get_rag_service() -> RAGService:
             safety_service=get_safety_service(),
             confidence_scorer=get_confidence_scorer(),
             top_k=settings.rag_top_k,
+            tenant_id=DEFAULT_TENANT_ID,
         )
     return _rag_service
 

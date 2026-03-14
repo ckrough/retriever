@@ -78,6 +78,23 @@ class DocumentRepository:
 
         return document
 
+    async def mark_indexed(
+        self,
+        document_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+    ) -> None:
+        """Mark a document as indexed.
+
+        Args:
+            document_id: The document's UUID.
+            tenant_id: Tenant scope.
+        """
+        async with self._session_factory() as session:
+            doc = await session.get(Document, document_id)
+            if doc and doc.tenant_id == tenant_id:
+                doc.is_indexed = True
+                await session.commit()
+
     async def get(
         self,
         document_id: uuid.UUID,
