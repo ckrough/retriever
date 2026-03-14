@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func, text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,16 @@ class Document(Base):
     )
     is_indexed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
+    )
+    file_size_bytes: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    file_type: Mapped[str] = mapped_column(
+        String(100), nullable=False, server_default=text("'text/plain'")
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")

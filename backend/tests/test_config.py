@@ -1,6 +1,8 @@
 """Tests for application configuration."""
 
-from retriever.config import Settings, get_settings
+import pytest
+
+from retriever.config import Settings, _parse_origins_str, get_settings
 
 
 def test_settings_defaults() -> None:
@@ -8,12 +10,12 @@ def test_settings_defaults() -> None:
     settings = Settings()
     assert settings.debug is False
     assert settings.langfuse_host == "https://us.cloud.langfuse.com"
-    assert "http://localhost:5173" in settings.allowed_origins
+    assert "http://localhost:5173" in settings.allowed_origins_list
 
 
 def test_ai_gateway_base_url_fallback() -> None:
     """ai_gateway_base_url falls back to OpenRouter when CF not configured."""
-    settings = Settings()
+    settings = Settings(cloudflare_account_id="", cloudflare_gateway_id="")
     assert settings.ai_gateway_base_url == "https://openrouter.ai/api/v1"
 
 
@@ -39,7 +41,31 @@ def test_get_settings_returns_cached_instance() -> None:
 
 def test_wildcard_origin_rejected() -> None:
     """Settings rejects wildcard '*' in allowed_origins."""
-    import pytest
-
     with pytest.raises(Exception, match="Wildcard"):
-        Settings(allowed_origins=["*"])
+        Settings(allowed_origins="*")
+
+
+def test_parse_origins_json_array() -> None:
+    """Parses valid JSON array."""
+    assert _parse_origins_str('["http://a","http://b"]') == ["http://a", "http://b"]
+
+
+def test_parse_origins_comma_separated() -> None:
+    """Parses comma-separated string."""
+    assert _parse_origins_str("http://a,http://b") == ["http://a", "http://b"]
+
+
+def test_parse_origins_single_value() -> None:
+    """Parses single origin."""
+    assert _parse_origins_str("http://localhost:5173") == ["http://localhost:5173"]
+
+
+def test_parse_origins_shell_escaped() -> None:
+    r"""Handles shell-mangled JSON like [\"http://a\"]."""
+    result = _parse_origins_str('[\\"http://a\\"]')
+    assert "http://a" in result[0]
+
+
+def test_parse_origins_empty() -> None:
+    """Empty string returns empty list."""
+    assert _parse_origins_str("") == []
