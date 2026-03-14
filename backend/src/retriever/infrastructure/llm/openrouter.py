@@ -18,6 +18,7 @@ from retriever.infrastructure.llm.exceptions import (
     LLMRateLimitError,
     LLMTimeoutError,
 )
+from retriever.infrastructure.observability.langfuse import observe
 
 logger = structlog.get_logger()
 
@@ -75,6 +76,7 @@ class OpenRouterProvider:
             timeout_duration=timedelta(seconds=circuit_breaker_timeout),
         )
 
+    @observe(as_type="generation")  # type: ignore[untyped-decorator]
     async def complete(
         self,
         system_prompt: str,
@@ -220,6 +222,7 @@ class OpenRouterProvider:
                 provider=self.PROVIDER_NAME,
             ) from e
 
+    @observe(as_type="generation")  # type: ignore[untyped-decorator]
     async def complete_with_history(
         self,
         system_prompt: str,

@@ -14,7 +14,12 @@ from sqlalchemy import text
 
 from retriever.config import get_settings
 from retriever.infrastructure.database.session import _get_factory
+from retriever.infrastructure.observability.langfuse import (
+    configure_langfuse,
+    flush_langfuse,
+)
 from retriever.infrastructure.observability.logging import configure_logging
+from retriever.infrastructure.observability.middleware import RequestIdMiddleware
 from retriever.infrastructure.observability.tracing import configure_tracing
 from retriever.modules.documents.routes import router as documents_router
 from retriever.modules.messages.routes import router as messages_router
@@ -83,6 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger = structlog.get_logger(__name__)
     logger.info("retriever.startup")
     yield
+    flush_langfuse()
     logger.info("retriever.shutdown")
 
 
@@ -90,7 +96,6 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
     configure_logging(debug=settings.debug)
-    configure_tracing(service_name="retriever", debug=settings.debug)
 
     app = FastAPI(
         title="Retriever",
@@ -99,12 +104,32 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Tracing must run after app creation so FastAPI can be instrumented
+    configure_tracing(
+        service_name="retriever",
+        debug=settings.debug,
+        gcp_project_id=settings.gcp_project_id,
+        sample_rate=settings.otel_trace_sample_rate,
+        app=app,
+        enabled=settings.otel_enabled,
+    )
+
+    # Langfuse LLM observability
+    configure_langfuse(
+        secret_key=settings.langfuse_secret_key.get_secret_value(),
+        public_key=settings.langfuse_public_key,
+        host=settings.langfuse_host,
+    )
+
+    # Request ID must be added before CORS (outer middleware runs first)
+    app.add_middleware(RequestIdMiddleware)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
 
     app.include_router(health_router)

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from retriever.infrastructure.cache.protocol import CachedAnswer, SemanticCache
 from retriever.infrastructure.embeddings.protocol import EmbeddingProvider
 from retriever.infrastructure.llm.protocol import LLMProvider
+from retriever.infrastructure.observability.langfuse import observe
 from retriever.infrastructure.safety.confidence import ConfidenceScorer
 from retriever.infrastructure.safety.schemas import (
     SafetyViolationType,
@@ -140,6 +141,7 @@ class RAGService:
         self._top_k = top_k
         self._tenant_id = tenant_id
 
+    @observe()  # type: ignore[untyped-decorator]
     async def ask(
         self,
         question: str,
@@ -362,6 +364,7 @@ class RAGService:
             confidence_score=confidence.score,
         )
 
+    @observe()  # type: ignore[untyped-decorator]
     async def index_document(
         self,
         document_id: uuid.UUID,

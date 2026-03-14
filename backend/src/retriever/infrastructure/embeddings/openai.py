@@ -19,6 +19,7 @@ from retriever.infrastructure.embeddings.exceptions import (
     EmbeddingRateLimitError,
     EmbeddingTimeoutError,
 )
+from retriever.infrastructure.observability.langfuse import observe
 
 logger = structlog.get_logger()
 
@@ -90,6 +91,7 @@ class OpenAIEmbeddingProvider:
         """Return the dimensionality of embeddings produced by this provider."""
         return self.MODEL_DIMENSIONS.get(self._model, 1536)
 
+    @observe(as_type="generation")  # type: ignore[untyped-decorator]
     async def embed(self, text: str) -> list[float]:
         """Generate embedding vector for a single text.
 
@@ -143,6 +145,7 @@ class OpenAIEmbeddingProvider:
                 provider=self.PROVIDER_NAME,
             ) from e
 
+    @observe(as_type="generation")  # type: ignore[untyped-decorator]
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embedding vectors for multiple texts.
 

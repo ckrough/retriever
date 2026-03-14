@@ -32,7 +32,7 @@ bd create "Fix chat timeout bug" -l apprtvr -l tooling
 - **Vector DB:** Supabase Postgres + pgvector (HNSW cosine + GIN full-text)
 - **Frontend:** SvelteKit + Svelte 5 runes + Skeleton UI v4
 - **Auth:** Supabase Auth / JWKS (RS256 JWT), RLS
-- **Observability:** structlog (JSON) + OpenTelemetry
+- **Observability:** structlog (JSON) + OpenTelemetry (GCP Cloud Trace / Jaeger) + Langfuse
 - **Deploy:** Cloud Run (backend), Cloudflare Pages (frontend)
 
 ### Old Stack (frozen — `src/`, do not modify until Phase 10 cleanup)
@@ -125,7 +125,7 @@ retriever/
 │   ├── database/           # async session factory
 │   ├── embeddings/         # OpenAIEmbeddingProvider (via AI Gateway)
 │   ├── llm/                # OpenRouterProvider + FallbackLLMProvider (via AI Gateway)
-│   ├── observability/      # structlog JSON + OTel console exporter
+│   ├── observability/      # structlog JSON + OTel (GCP/OTLP/console) + Langfuse + RequestIdMiddleware
 │   └── vectordb/           # PgVectorStore (HNSW cosine + GIN full-text)
 └── modules/
     └── auth/               # JwksValidator, require_auth, require_admin
@@ -151,6 +151,10 @@ follow_imports = "skip"
 **AI Gateway routing:** `settings.ai_gateway_base_url` is a computed field. If `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_GATEWAY_ID` are set, it routes through Cloudflare AI Gateway; otherwise it falls back to OpenRouter directly. All LLM and embedding providers must use this field, not hardcoded URLs.
 
 **File upload decision (Phase 7):** Ephemeral FS (process-and-discard) vs Supabase Storage (persist raw file) is still open. Ask user before implementing `/documents/upload`.
+
+**OTel exporter selection (Phase 6):** `tracing.py` auto-selects exporter: GCP Cloud Trace (`gcp_project_id` set) → OTLP/gRPC (`OTEL_EXPORTER_OTLP_ENDPOINT` set, for Jaeger) → Console (debug) → no-op. GCP exporter gracefully falls through if credentials are unavailable (local dev without ADC).
+
+**Langfuse @observe() is a no-op without credentials:** The decorator is always imported but only sends traces when `langfuse_secret_key`, `langfuse_public_key`, and `langfuse_host` are all set. Safe to ignore in local dev.
 
 ## Git Workflow: GitHub Flow
 
@@ -352,7 +356,8 @@ Read ADRs when you need to understand *why* a technical choice was made or when 
 | ADR | Path | Topics |
 |-----|------|--------|
 | 006 | `docs/decisions/006-frontend-architecture.md` | Jinja2, HTMX, Tailwind, server-rendered |
-| 008 | `docs/decisions/008-observability-stack.md` | Sentry, structlog, error tracking, logging |
+| 008 | `docs/decisions/008-observability-stack.md` | ~~Superseded by 018~~ Sentry, structlog |
+| 018 | `docs/decisions/018-gcp-native-observability.md` | GCP Cloud Trace, Langfuse, OTel, structlog |
 | 010 | `docs/decisions/010-resilience-patterns.md` | Circuit breakers, retries, timeouts, aiobreaker |
 
 **Reference**
@@ -366,7 +371,7 @@ Read ADRs when you need to understand *why* a technical choice was made or when 
 |-------|-------------|--------------|
 | RAG pipeline | `docs/architecture.md` | 002, 004, 005, 013, 014, 016, 017 |
 | Security | `docs/development-standards.md` | 007, 009, 012, 015 |
-| Deployment | `docs/guides/deployment.md` | 008, 010 |
+| Deployment | `docs/guides/deployment.md` | 010, 018 |
 | Code patterns | `docs/development-standards.md` | 001, 003 |
 | Adding features | `docs/increments.md` | (varies by feature) |
 

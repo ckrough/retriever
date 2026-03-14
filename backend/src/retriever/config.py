@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     # GCP
     gcp_project_id: str = ""
 
+    # OpenTelemetry
+    otel_enabled: bool = True
+    otel_trace_sample_rate: float = 1.0
+
     # Database
     database_require_ssl: bool = False  # True in production (Supabase / Cloud Run)
 
