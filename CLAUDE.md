@@ -115,12 +115,61 @@ pip-audit
 ruff check src/ tests/ --fix && ruff format src/ tests/ && mypy src/ --strict && pytest --cov=src --cov-fail-under=80
 ```
 
+## Local Development
+
+The dev workflow runs infrastructure in Docker + Supabase CLI, with backend and frontend running natively for fast live reload.
+
+```bash
+# 1. Start Supabase (auth, realtime, storage)
+supabase start
+
+# 2. Start infrastructure (pgvector postgres + jaeger)
+docker compose up -d
+
+# 3. Backend (separate terminal)
+cd backend && uv sync --extra dev
+uv run alembic upgrade head          # first time / after migrations
+uv run uvicorn retriever.main:app --reload --port 8000
+
+# 4. Frontend (separate terminal)
+cd frontend && npm install
+npm run dev                          # live reload on :5173
+
+# 5. Stop everything
+docker compose down && supabase stop
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full setup instructions including prerequisites and environment configuration.
+
+## CI/CD
+
+### Workflows
+
+| Workflow | File | Trigger |
+|----------|------|---------|
+| CI | `.github/workflows/ci.yml` | Push/PR to main |
+| Claude Code | `.github/workflows/claude.yml` | `@claude` in PR/issue comments |
+| Release | `.github/workflows/release.yml` | Semantic release |
+
+### CI Path Filtering
+
+CI uses `dorny/paths-filter` — only changed stacks run:
+
+| Stack | Path Filter | Jobs |
+|-------|-------------|------|
+| Backend | `backend/**` | lint, typecheck, test |
+| Frontend | `frontend/**` | check, build, e2e |
+| Legacy | `src/**`, `tests/**` | lint, typecheck, test |
+
+The `all-checks` gate job requires all triggered jobs to pass (skipped jobs are OK).
+
 ## Project Structure
 
 ### Monorepo Layout
 
 ```
 retriever/
+├── .github/workflows/      # CI/CD: ci.yml, claude.yml, release.yml
 ├── backend/                # New Python backend (active development)
 │   ├── src/retriever/      # Application source
 │   ├── tests/              # Backend tests

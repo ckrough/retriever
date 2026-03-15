@@ -5,9 +5,10 @@ import pytest
 from retriever.config import Settings, _parse_origins_str, get_settings
 
 
-def test_settings_defaults() -> None:
+def test_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     """Settings load with sensible defaults when no env vars present."""
-    settings = Settings()
+    monkeypatch.delenv("DEBUG", raising=False)
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert settings.debug is False
     assert settings.langfuse_host == "https://us.cloud.langfuse.com"
     assert "http://localhost:5173" in settings.allowed_origins_list

@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from retriever.config import get_settings
 from retriever.infrastructure.cache.pg_cache import PgSemanticCache
 from retriever.infrastructure.database.session import _get_factory
-from retriever.models.user import DEFAULT_TENANT_ID
 from retriever.infrastructure.embeddings.openai import OpenAIEmbeddingProvider
 from retriever.infrastructure.llm.fallback import FallbackLLMProvider
 from retriever.infrastructure.llm.openrouter import OpenRouterProvider
@@ -16,6 +15,7 @@ from retriever.infrastructure.safety.detector import PromptInjectionDetector
 from retriever.infrastructure.safety.moderation import OpenAIModerator
 from retriever.infrastructure.safety.service import SafetyService
 from retriever.infrastructure.vectordb.pgvector_store import PgVectorStore
+from retriever.models.user import DEFAULT_TENANT_ID
 from retriever.modules.messages.repos import MessageRepository
 from retriever.modules.rag.chunker import HierarchicalChunker
 from retriever.modules.rag.loader import TextDocumentParser
