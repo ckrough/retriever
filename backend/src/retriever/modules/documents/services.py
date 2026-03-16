@@ -20,10 +20,32 @@ from retriever.modules.documents.schemas import (
     DocumentResponse,
     DocumentUploadResponse,
 )
-from retriever.modules.rag.loader import FileValidationError, validate_file
+from retriever.modules.rag.loader import (
+    FileValidationError,
+    get_extension,
+    title_from_filename,
+    validate_file,
+)
 from retriever.modules.rag.service import RAGService
 
 logger = structlog.get_logger(__name__)
+
+# MIME type mapping for supported file extensions
+_MIME_TYPES: dict[str, str] = {
+    ".md": "text/markdown",
+    ".txt": "text/plain",
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".tiff": "image/tiff",
+    ".bmp": "image/bmp",
+}
 
 
 def _mime_type_from_filename(filename: str) -> str:
@@ -35,45 +57,17 @@ def _mime_type_from_filename(filename: str) -> str:
     Returns:
         A MIME type string.
     """
-    lower = filename.lower()
-    if lower.endswith(".md"):
-        return "text/markdown"
-    if lower.endswith(".txt"):
-        return "text/plain"
+    ext = get_extension(filename)
+    if ext is not None:
+        return _MIME_TYPES.get(ext, "application/octet-stream")
     return "application/octet-stream"
-
-
-def _extract_title(content: str, filename: str) -> str:
-    """Extract a title from content or fall back to filename.
-
-    For markdown files, looks for the first H1 heading.
-    Falls back to the filename without extension.
-
-    Args:
-        content: Document text content.
-        filename: Original filename.
-
-    Returns:
-        Extracted or derived title.
-    """
-    import re
-
-    if filename.lower().endswith(".md"):
-        match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
-        if match:
-            return match.group(1).strip()
-
-    dot_pos = filename.rfind(".")
-    if dot_pos > 0:
-        return filename[:dot_pos]
-    return filename
 
 
 class DocumentService:
     """Orchestrates document upload, indexing, listing, and deletion.
 
     Coordinates between the document repository (DB metadata), the RAG
-    service (chunking and embedding), the vector store (chunk deletion),
+    service (processing and embedding), the vector store (chunk deletion),
     and the semantic cache (invalidation on changes).
     """
 
@@ -114,10 +108,11 @@ class DocumentService:
         1. Validate file (extension, size, hidden-file rules)
         2. Check document count < max_documents
         3. Check no duplicate filename
-        4. Decode content as UTF-8
-        5. Index via RAG service (chunk, embed, store)
-        6. Create DB record
-        7. Return response
+        4. Pass raw bytes to RAG service for processing
+        5. Create DB record with fallback title
+        6. Index via RAG service (process, embed, store)
+        7. Update title if processor extracted a better one
+        8. Return response
 
         Args:
             file_content: Raw file bytes.
@@ -154,17 +149,11 @@ class DocumentService:
                 "Delete it first or use a different filename."
             )
 
-        # 4. Decode content
-        try:
-            content_str = file_content.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise DocumentValidationError("File must be valid UTF-8 text.") from exc
-
-        # 5. Extract title and determine MIME type
-        title = _extract_title(content_str, filename)
+        # 4. Determine MIME type and fallback title
+        title = title_from_filename(filename)
         file_type = _mime_type_from_filename(filename)
 
-        # 6. Create DB record first to get the document ID
+        # 5. Create DB record first to get the document ID
         document = await self._repo.create(
             filename=filename,
             title=title,
@@ -176,10 +165,10 @@ class DocumentService:
             is_indexed=False,
         )
 
-        # 7. Index via RAG service
+        # 6. Index via RAG service (passes raw bytes to document processor)
         result = await self._rag.index_document(
             document_id=document.id,
-            content=content_str,
+            content=file_content,
             source=filename,
             title=title,
         )
@@ -191,8 +180,13 @@ class DocumentService:
                 result.error_message or "Indexing failed with unknown error"
             )
 
-        # 8. Mark as indexed
-        await self._repo.mark_indexed(document.id, tenant_id)
+        # 7. Mark as indexed (+ update title if processor found a better one)
+        final_title = title
+        new_title: str | None = None
+        if result.parsed_title and result.parsed_title != title:
+            final_title = result.parsed_title
+            new_title = final_title
+        await self._repo.mark_indexed(document.id, tenant_id, title=new_title)
 
         logger.info(
             "document.uploaded",
@@ -205,7 +199,7 @@ class DocumentService:
         return DocumentUploadResponse(
             id=document.id,
             filename=filename,
-            title=title,
+            title=final_title,
             chunks_created=result.chunks_created,
             message=f"Document '{filename}' uploaded and indexed "
             f"({result.chunks_created} chunks created).",

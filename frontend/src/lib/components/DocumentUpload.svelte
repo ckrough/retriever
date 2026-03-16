@@ -10,8 +10,12 @@
 	let error: string | null = $state(null);
 	let inputEl: HTMLInputElement | undefined = $state();
 
-	const allowedTypes = ['.md', '.txt'];
-	const maxSizeMb = 10;
+	const allowedTypes = ['.md', '.txt', '.pdf', '.docx', '.pptx', '.xlsx', '.html', '.htm'];
+	const imageTypes = ['.png', '.jpg', '.jpeg', '.tiff', '.bmp'];
+	const allTypes = [...allowedTypes, ...imageTypes];
+	const maxSizeMbText = 1;
+	const maxSizeMbBinary = 20;
+	const textTypes = new Set(['.md', '.txt']);
 
 	function openFilePicker() {
 		inputEl?.click();
@@ -28,12 +32,13 @@
 		}
 
 		const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-		if (!allowedTypes.includes(ext)) {
-			error = `Only ${allowedTypes.join(', ')} files are allowed.`;
+		if (!allTypes.includes(ext)) {
+			error = `Unsupported format. Accepted: ${allowedTypes.join(', ')}, images`;
 			selectedFile = null;
 			return;
 		}
 
+		const maxSizeMb = textTypes.has(ext) ? maxSizeMbText : maxSizeMbBinary;
 		if (file.size > maxSizeMb * 1024 * 1024) {
 			error = `File must be under ${maxSizeMb} MB.`;
 			selectedFile = null;
@@ -56,7 +61,7 @@
 	<input
 		bind:this={inputEl}
 		type="file"
-		accept={allowedTypes.join(',')}
+		accept={allTypes.join(',')}
 		onchange={handleFileChange}
 		style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"
 		tabindex="-1"
@@ -72,7 +77,9 @@
 			Choose File...
 		</button>
 		<span class="text-sm text-surface-500">
-			{selectedFile ? selectedFile.name : 'Accepted: .md, .txt (max 10 MB)'}
+			{selectedFile
+				? selectedFile.name
+				: 'PDF, Word, PowerPoint, Excel, Markdown, text, HTML, images (max 20 MB)'}
 		</span>
 		<button
 			type="button"

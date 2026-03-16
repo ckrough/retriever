@@ -29,6 +29,8 @@ dependencies = [
     "tenacity>=9.0",
     "aiobreaker>=1.2",
     "python-multipart>=0.0.18",
+    "docling>=2.0",
+    "docling-core[chunking-openai]>=2.0",
     "opentelemetry-exporter-gcp-trace>=1.8",
     "opentelemetry-resourcedetector-gcp>=1.8",
     "langfuse>=3.0",
@@ -74,6 +76,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["langfuse", "langfuse.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["docling.*", "docling_core.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

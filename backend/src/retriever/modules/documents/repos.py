@@ -82,17 +82,24 @@ class DocumentRepository:
         self,
         document_id: uuid.UUID,
         tenant_id: uuid.UUID,
+        *,
+        title: str | None = None,
     ) -> None:
-        """Mark a document as indexed.
+        """Mark a document as indexed, optionally updating its title.
+
+        Combines the indexed flag and title update in a single DB round-trip.
 
         Args:
             document_id: The document's UUID.
             tenant_id: Tenant scope.
+            title: New title (if the processor extracted a better one).
         """
         async with self._session_factory() as session:
             doc = await session.get(Document, document_id)
             if doc and doc.tenant_id == tenant_id:
                 doc.is_indexed = True
+                if title is not None:
+                    doc.title = title
                 await session.commit()
 
     async def get(

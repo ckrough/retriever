@@ -89,8 +89,14 @@ class Settings(BaseSettings):
 
     # RAG
     rag_top_k: int = 5
-    rag_chunk_size: int = 1500
-    rag_chunk_overlap: int = 800
+
+    # Docling document processing
+    docling_ocr_enabled: bool = True
+    docling_table_extraction: bool = True
+    docling_picture_description: bool = False
+    docling_max_pages: int = 100
+    docling_chunk_max_tokens: int = 512
+    docling_merge_peers: bool = True
 
     # Hybrid retrieval
     hybrid_retrieval_enabled: bool = True
