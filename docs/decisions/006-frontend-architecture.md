@@ -1,7 +1,7 @@
 ---
 adr: 6
 title: Frontend Architecture
-status: accepted
+status: superseded
 date: 2024-12-18
 tags:
   - frontend
@@ -9,15 +9,17 @@ tags:
   - htmx
   - tailwind
 supersedes: null
-superseded_by: null
+superseded_by: "SvelteKit migration (stack migration Phase 2)"
 related: [1]
 ---
 
 # 006: Frontend Architecture
 
+> **Superseded:** Frontend migrated from Jinja2/HTMX to SvelteKit + Svelte 5 runes + Skeleton UI v4.
+
 ## Status
 
-Accepted
+Superseded
 
 ## Context
 

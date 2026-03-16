@@ -11,9 +11,9 @@ Deploy Retriever to Google Cloud Run with Secret Manager.
   - OpenRouter API key ([get here](https://openrouter.ai/keys))
   - OpenAI API key ([get here](https://platform.openai.com/api-keys))
 
-## Data Persistence Note
+## Data Persistence
 
-**Data is ephemeral** - SQLite and Chroma data reset when containers restart. This is acceptable for demos. For production, migrate to Cloud SQL and persistent storage.
+Data is stored in Supabase managed Postgres (with pgvector). No local data persistence is needed on the Cloud Run container — all state lives in the external database.
 
 ---
 
@@ -50,7 +50,9 @@ gcloud artifacts repositories create retriever \
 # Create secrets with placeholder values
 echo -n "placeholder" | gcloud secrets create retriever-openrouter-api-key --data-file=- --project="$PROJECT_ID"
 echo -n "placeholder" | gcloud secrets create retriever-openai-api-key --data-file=- --project="$PROJECT_ID"
-echo -n "placeholder" | gcloud secrets create retriever-jwt-secret --data-file=- --project="$PROJECT_ID"
+echo -n "placeholder" | gcloud secrets create retriever-database-url --data-file=- --project="$PROJECT_ID"
+echo -n "placeholder" | gcloud secrets create retriever-supabase-url --data-file=- --project="$PROJECT_ID"
+echo -n "placeholder" | gcloud secrets create retriever-supabase-anon-key --data-file=- --project="$PROJECT_ID"
 ```
 
 ## Step 5: Update Secrets with Real Values
@@ -62,8 +64,14 @@ echo -n 'sk-or-v1-your-key-here' | gcloud secrets versions add retriever-openrou
 # OpenAI API key
 echo -n 'sk-your-key-here' | gcloud secrets versions add retriever-openai-api-key --data-file=- --project="$PROJECT_ID"
 
-# JWT secret (generate random)
-openssl rand -base64 32 | gcloud secrets versions add retriever-jwt-secret --data-file=- --project="$PROJECT_ID"
+# Database URL (Supabase connection pooler)
+echo -n 'postgresql+asyncpg://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres' | gcloud secrets versions add retriever-database-url --data-file=- --project="$PROJECT_ID"
+
+# Supabase URL
+echo -n 'https://[ref].supabase.co' | gcloud secrets versions add retriever-supabase-url --data-file=- --project="$PROJECT_ID"
+
+# Supabase anon key
+echo -n 'your-anon-key' | gcloud secrets versions add retriever-supabase-anon-key --data-file=- --project="$PROJECT_ID"
 ```
 
 ## Step 6: Grant Cloud Run Access to Secrets
@@ -71,26 +79,43 @@ openssl rand -base64 32 | gcloud secrets versions add retriever-jwt-secret --dat
 ```bash
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
 
-gcloud secrets add-iam-policy-binding retriever-openrouter-api-key \
-    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor" \
-    --project="$PROJECT_ID"
-
-gcloud secrets add-iam-policy-binding retriever-openai-api-key \
-    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor" \
-    --project="$PROJECT_ID"
-
-gcloud secrets add-iam-policy-binding retriever-jwt-secret \
-    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor" \
-    --project="$PROJECT_ID"
+for SECRET in retriever-openrouter-api-key retriever-openai-api-key retriever-database-url retriever-supabase-url retriever-supabase-anon-key; do
+  gcloud secrets add-iam-policy-binding $SECRET \
+      --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+      --role="roles/secretmanager.secretAccessor" \
+      --project="$PROJECT_ID"
+done
 ```
 
-## Step 7: Build Container Image
+## Step 7: Deploy to Cloud Run (Source-Based)
+
+The simplest approach uses `--source` to build and deploy in one step:
 
 ```bash
-docker build --platform linux/amd64 -t $REGION-docker.pkg.dev/$PROJECT_ID/retriever/retriever:latest .
+gcloud run deploy retriever \
+    --source ./backend \
+    --region $REGION \
+    --project $PROJECT_ID \
+    --platform managed \
+    --allow-unauthenticated \
+    --memory 1Gi \
+    --cpu 1 \
+    --min-instances 0 \
+    --max-instances 10 \
+    --timeout 60 \
+    --concurrency 80 \
+    --set-env-vars "DEBUG=false" \
+    --set-secrets "OPENROUTER_API_KEY=retriever-openrouter-api-key:latest,OPENAI_API_KEY=retriever-openai-api-key:latest,DATABASE_URL=retriever-database-url:latest,SUPABASE_URL=retriever-supabase-url:latest,SUPABASE_ANON_KEY=retriever-supabase-anon-key:latest"
+```
+
+Skip to Step 11 for verification.
+
+### Alternative: Manual Image Build
+
+If you prefer to build the image locally:
+
+```bash
+docker build --platform linux/amd64 -t $REGION-docker.pkg.dev/$PROJECT_ID/retriever/retriever:latest ./backend
 ```
 
 ## Step 8: Authenticate Docker with Artifact Registry
@@ -105,7 +130,7 @@ gcloud auth print-access-token | docker login -u oauth2accesstoken --password-st
 docker push $REGION-docker.pkg.dev/$PROJECT_ID/retriever/retriever:latest
 ```
 
-## Step 10: Deploy to Cloud Run
+## Step 10: Deploy to Cloud Run (Manual Image)
 
 ```bash
 gcloud run deploy retriever \
@@ -120,8 +145,8 @@ gcloud run deploy retriever \
     --max-instances 10 \
     --timeout 60 \
     --concurrency 80 \
-    --set-env-vars "DEBUG=false,AUTH_ENABLED=true,SAFETY_ENABLED=true,CACHE_ENABLED=true,HYBRID_RETRIEVAL_ENABLED=true" \
-    --set-secrets "OPENROUTER_API_KEY=retriever-openrouter-api-key:latest,EMBEDDING_API_KEY=retriever-openrouter-api-key:latest,OPENAI_API_KEY=retriever-openai-api-key:latest,JWT_SECRET_KEY=retriever-jwt-secret:latest"
+    --set-env-vars "DEBUG=false" \
+    --set-secrets "OPENROUTER_API_KEY=retriever-openrouter-api-key:latest,OPENAI_API_KEY=retriever-openai-api-key:latest,DATABASE_URL=retriever-database-url:latest,SUPABASE_URL=retriever-supabase-url:latest,SUPABASE_ANON_KEY=retriever-supabase-anon-key:latest"
 ```
 
 ## Step 11: Verify Deployment
@@ -137,24 +162,31 @@ curl $SERVICE_URL/health
 
 ## Step 12: Create Admin User
 
-```bash
-curl -X POST "${SERVICE_URL}/auth/register" \
-    -H "Content-Type: application/json" \
-    -d '{
-      "email": "admin@example.com",
-      "password": "your-secure-password",
-      "is_admin": true
-    }'
+Admin users are created in the Supabase dashboard (Authentication > Users). Set `is_admin: true` in the user's `app_metadata` to grant admin privileges:
+
+```json
+{
+  "is_admin": true
+}
 ```
 
 ---
 
 ## Redeployment
 
-After code changes, repeat steps 7-10:
+After code changes, redeploy from source:
 
 ```bash
-docker build --platform linux/amd64 -t $REGION-docker.pkg.dev/$PROJECT_ID/retriever/retriever:latest .
+gcloud run deploy retriever \
+    --source ./backend \
+    --region $REGION \
+    --project $PROJECT_ID
+```
+
+Or if using manual image builds, repeat steps 7-10:
+
+```bash
+docker build --platform linux/amd64 -t $REGION-docker.pkg.dev/$PROJECT_ID/retriever/retriever:latest ./backend
 gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin $REGION-docker.pkg.dev
 docker push $REGION-docker.pkg.dev/$PROJECT_ID/retriever/retriever:latest
 gcloud run deploy retriever \
