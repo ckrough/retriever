@@ -86,6 +86,7 @@ async def test_upload_document_valid_file() -> None:
         source="test.md",
         chunks_created=5,
         success=True,
+        parsed_title="Test Document",
     )
 
     result = await service.upload_document(
@@ -97,9 +98,14 @@ async def test_upload_document_valid_file() -> None:
 
     assert result.filename == "test.md"
     assert result.chunks_created == 5
+    assert result.title == "Test Document"
     assert result.id == doc.id
     mock_repo.create.assert_awaited_once()
     mock_rag.index_document.assert_awaited_once()
+    # mark_indexed called with title= because parsed_title differs from fallback
+    mock_repo.mark_indexed.assert_awaited_once()
+    call_kwargs = mock_repo.mark_indexed.call_args.kwargs
+    assert call_kwargs["title"] == "Test Document"
 
 
 @pytest.mark.asyncio
@@ -109,7 +115,7 @@ async def test_upload_document_invalid_file_type() -> None:
     with pytest.raises(DocumentValidationError, match="Unsupported file format"):
         await service.upload_document(
             file_content=b"binary data",
-            filename="image.png",
+            filename="archive.zip",
             tenant_id=TENANT_ID,
             uploaded_by=USER_ID,
         )
@@ -174,18 +180,35 @@ async def test_upload_document_indexing_failure_cleans_up() -> None:
 
 
 @pytest.mark.asyncio
-async def test_upload_document_invalid_utf8() -> None:
-    service, mock_repo, _, _, _ = _build_service()
+async def test_upload_document_pdf_sets_correct_mime_type() -> None:
+    """PDF upload uses application/pdf MIME type."""
+    service, mock_repo, mock_rag, _, _ = _build_service()
+
     mock_repo.get_count.return_value = 0
     mock_repo.exists_by_filename.return_value = False
 
-    with pytest.raises(DocumentValidationError, match="UTF-8"):
-        await service.upload_document(
-            file_content=b"\xff\xfe",
-            filename="test.txt",
-            tenant_id=TENANT_ID,
-            uploaded_by=USER_ID,
-        )
+    doc = _make_document(filename="report.pdf")
+    doc.file_type = "application/pdf"
+    mock_repo.create.return_value = doc
+
+    mock_rag.index_document.return_value = IndexingResult(
+        source="report.pdf",
+        chunks_created=10,
+        success=True,
+        parsed_title="Annual Report",
+    )
+
+    result = await service.upload_document(
+        file_content=b"%PDF-1.4 fake pdf content",
+        filename="report.pdf",
+        tenant_id=TENANT_ID,
+        uploaded_by=USER_ID,
+    )
+
+    assert result.chunks_created == 10
+    # Verify the MIME type was passed to create
+    create_call = mock_repo.create.call_args
+    assert create_call.kwargs["file_type"] == "application/pdf"
 
 
 @pytest.mark.asyncio

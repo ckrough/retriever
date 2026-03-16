@@ -28,6 +28,7 @@ bd create "Fix chat timeout bug" -l apprtvr -l tooling
 
 ### Stack (`backend/`, `frontend/`)
 - **Backend:** Python 3.13+, FastAPI, Pydantic 2.x, SQLAlchemy 2.0 async
+- **Document Processing:** Docling (PDF, DOCX, PPTX, XLSX, HTML, images, MD, TXT) with HybridChunker
 - **LLM:** OpenRouter via Cloudflare AI Gateway (OpenAI-compatible API)
 - **Vector DB:** Supabase Postgres + pgvector (HNSW cosine + GIN full-text)
 - **Frontend:** SvelteKit + Svelte 5 runes + Skeleton UI v4
@@ -194,9 +195,20 @@ retriever/
 │   ├── embeddings/         # OpenAIEmbeddingProvider (via AI Gateway)
 │   ├── llm/                # OpenRouterProvider + FallbackLLMProvider (via AI Gateway)
 │   ├── observability/      # structlog JSON + OTel (GCP/OTLP/console) + Langfuse + RequestIdMiddleware
+│   ├── safety/             # PromptInjectionDetector, OpenAIModerator, HallucinationDetector, ConfidenceScorer, SafetyService
 │   └── vectordb/           # PgVectorStore (HNSW cosine + GIN full-text)
 └── modules/
-    └── auth/               # JwksValidator, require_auth, require_admin
+    ├── auth/               # JwksValidator, require_auth, require_admin
+    ├── documents/          # upload/list/delete with /api/v1/documents endpoints
+    ├── messages/           # conversation history with /api/v1/history endpoints
+    └── rag/                # Docling processor, hybrid retriever, RAG service, /api/v1/ask
+        ├── docling_processor.py  # DoclingProcessor + FormatAwareProcessor (lazy Docling imports)
+        ├── exceptions.py         # DocumentConversionError, UnsupportedFormatError
+        ├── loader.py             # File validation, format-aware size limits
+        ├── prompts.py            # RAG system prompt with heading/table instructions
+        ├── retriever.py          # HybridRetriever (semantic + keyword search)
+        ├── schemas.py            # DocumentProcessor protocol, ProcessingResult, Chunk, etc.
+        └── service.py            # RAGService: index_document(bytes), ask()
 ```
 
 ## Backend Gotchas
@@ -216,7 +228,15 @@ follow_imports = "skip"
 
 **AI Gateway routing:** `settings.ai_gateway_base_url` is a computed field. If `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_GATEWAY_ID` are set, it routes through Cloudflare AI Gateway; otherwise it falls back to OpenRouter directly. All LLM and embedding providers must use this field, not hardcoded URLs.
 
-**File upload:** Uses ephemeral FS (process-and-discard) — chunks and embeds content, stores in pgvector, discards raw file. If Supabase Storage is needed later, only the upload handler changes.
+**File upload:** Uses ephemeral FS (process-and-discard) — processes, chunks, and embeds content, stores in pgvector, discards raw file. If Supabase Storage is needed later, only the upload handler changes.
+
+**Docling document processing:** Document processing uses Docling's `DocumentConverter` + `HybridChunker`. All Docling imports are lazy (inside methods) to avoid loading PyTorch at import time. `FormatAwareProcessor` routes `.md`/`.txt` through a lightweight `SimplePipeline` (no ML) and binary formats (PDF, DOCX, PPTX, XLSX, HTML, images) through the full ML pipeline. The `process()` method is sync; `RAGService.index_document()` wraps it with `asyncio.to_thread()`.
+
+**Docling mypy override:** Docling ships `py.typed` but has complex internal types. Using `ignore_missing_imports = true` alone causes type-check failures — set `follow_imports = "skip"` in the override block (same pattern as aiobreaker).
+
+**Docling OpenAITokenizer API:** `OpenAITokenizer` takes `tokenizer=tiktoken.encoding_for_model("text-embedding-3-small")` (a `tiktoken.Encoding` object), NOT `model_name="text-embedding-3-small"`. Online docs and context7 show the old API — always check the actual constructor signature.
+
+**Environment files:** Backend reads root `.env` via pydantic-settings. Frontend reads `frontend/.env` for SvelteKit `PUBLIC_*` vars. Two separate files — do NOT merge them (adding `extra="ignore"` to pydantic-settings hides typos). In production, each deploy target sets its own env vars. See `.env.example` and `frontend/.env.example`.
 
 **OTel exporter selection:** `tracing.py` auto-selects exporter: GCP Cloud Trace (`gcp_project_id` set) → OTLP/gRPC (`OTEL_EXPORTER_OTLP_ENDPOINT` set, for Jaeger) → Console (debug) → no-op. GCP exporter gracefully falls through if credentials are unavailable (local dev without ADC).
 

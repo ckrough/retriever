@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -25,10 +26,8 @@ from retriever.infrastructure.vectordb.protocol import (
 from retriever.modules.rag.prompts import FALLBACK_SYSTEM_PROMPT, build_rag_prompt
 from retriever.modules.rag.retriever import HybridRetriever
 from retriever.modules.rag.schemas import (
-    Chunk,
     ChunkWithScore,
-    DocumentChunker,
-    DocumentParser,
+    DocumentProcessor,
     IndexingResult,
     RAGResponse,
 )
@@ -82,7 +81,7 @@ class RAGService:
     """Orchestrates the RAG pipeline: retrieve relevant chunks, generate answer.
 
     The RAG service coordinates:
-    - Document indexing (chunk, embed, store)
+    - Document indexing (process, embed, store)
     - Question answering (embed query, retrieve, generate)
     - Safety checks (moderation, injection, hallucination)
     - Confidence scoring and caching
@@ -94,8 +93,7 @@ class RAGService:
         llm_provider: LLMProvider,
         embedding_provider: EmbeddingProvider,
         vector_store: VectorStore,
-        document_parser: DocumentParser,
-        document_chunker: DocumentChunker,
+        document_processor: DocumentProcessor,
         *,
         semantic_cache: SemanticCache | None = None,
         hybrid_retriever: HybridRetriever | None = None,
@@ -111,20 +109,13 @@ class RAGService:
             llm_provider: Provider for generating answers.
             embedding_provider: Provider for generating embeddings.
             vector_store: Store for document chunks.
-            document_parser: Parser for raw document content.
-            document_chunker: Chunker for splitting documents.
+            document_processor: Combined document parser and chunker.
             semantic_cache: Optional cache for similar question lookups.
-                When provided, similar questions return cached answers
-                (~50ms vs ~3s), reducing LLM costs by ~40%.
             hybrid_retriever: Optional hybrid retriever combining semantic
-                and keyword search. When provided, improves retrieval
-                accuracy by 10-15% using BM25 + RRF fusion.
+                and keyword search.
             safety_service: Optional safety service for content moderation
-                and hallucination detection. When provided, blocks unsafe
-                content and flags low-confidence answers.
+                and hallucination detection.
             confidence_scorer: Optional scorer for answer confidence.
-                When provided, calculates confidence based on retrieval
-                quality and grounding.
             top_k: Number of chunks to retrieve per query.
             tenant_id: Default tenant ID for multi-tenant scoping.
         """
@@ -132,8 +123,7 @@ class RAGService:
         self._llm = llm_provider
         self._embeddings = embedding_provider
         self._store = vector_store
-        self._parser = document_parser
-        self._chunker = document_chunker
+        self._processor = document_processor
         self._cache = semantic_cache
         self._retriever = hybrid_retriever
         self._safety = safety_service
@@ -165,7 +155,6 @@ class RAGService:
             question: The user's question.
             conversation_history: Optional list of prior messages as
                 [{"role": "user"|"assistant", "content": "..."}].
-                When provided, enables multi-turn conversation context.
 
         Returns:
             RAGResponse with answer and retrieved chunks.
@@ -368,38 +357,40 @@ class RAGService:
     async def index_document(
         self,
         document_id: uuid.UUID,
-        content: str,
+        content: bytes,
         source: str,
         title: str,
     ) -> IndexingResult:
         """Index a document into the vector store.
 
-        Chunks the content, generates embeddings, and upserts into the store.
+        Processes the raw bytes through the document processor (parse + chunk),
+        generates embeddings, and upserts into the store. CPU-bound Docling
+        processing runs in a thread to avoid blocking the event loop.
 
         Args:
             document_id: UUID of the document record.
-            content: Raw document text.
+            content: Raw file bytes.
             source: Source filename or identifier.
-            title: Document title.
+            title: Document title (fallback — processor may extract a better one).
 
         Returns:
-            IndexingResult with status and chunk count.
+            IndexingResult with status, chunk count, and parsed title.
         """
         try:
-            # 1. Parse (follows protocol, useful for future Docling support)
-            self._parser.parse(content, source)
-
-            # 2. Chunk
-            chunks: list[Chunk] = self._chunker.chunk(content, source, title=title)
+            # 1. Process document (parse + chunk) in a thread
+            #    Docling's convert() is sync and CPU-bound
+            result = await asyncio.to_thread(self._processor.process, content, source)
+            chunks = result.chunks
 
             if not chunks:
                 return IndexingResult(
                     source=source,
                     chunks_created=0,
                     success=True,
+                    parsed_title=result.document.title,
                 )
 
-            # 3. Embed batch
+            # 2. Embed batch
             logger.debug(
                 "rag_embedding_chunks",
                 source=source,
@@ -408,19 +399,19 @@ class RAGService:
             contents = [chunk.content for chunk in chunks]
             embeddings = await self._embeddings.embed_batch(contents)
 
-            # 4. Build ChunkInput list
+            # 3. Build ChunkInput list
             chunk_inputs: list[ChunkInput] = [
                 ChunkInput(
                     document_id=document_id,
                     content=chunk.content,
                     embedding=embedding,
                     source=source,
-                    title=title,
+                    title=result.document.title,
                 )
                 for chunk, embedding in zip(chunks, embeddings, strict=True)
             ]
 
-            # 5. Upsert into vector store
+            # 4. Upsert into vector store
             if self._tenant_id is not None:
                 await self._store.upsert(chunk_inputs, self._tenant_id)
             else:
@@ -439,6 +430,7 @@ class RAGService:
                 source=source,
                 chunks_created=len(chunks),
                 success=True,
+                parsed_title=result.document.title,
             )
 
         except Exception as exc:

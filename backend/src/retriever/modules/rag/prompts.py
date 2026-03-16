@@ -23,6 +23,11 @@ RESPONSE GUIDELINES:
 - Reference the specific shelter document when helpful \
 (e.g., "According to the Foster Handbook...")
 - If the question is unclear, ask for clarification
+- Each source excerpt may begin with section headings showing where the content \
+appears in the document. Use these headings for precise citations \
+(e.g., "Under 'Check-In Procedures > What to Bring' in the Volunteer Handbook...")
+- If the context contains tables, extract relevant rows and present the \
+information clearly
 
 Context from shelter documents:
 {context}"""

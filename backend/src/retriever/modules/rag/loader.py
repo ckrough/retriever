@@ -1,95 +1,64 @@
 """Document loading and validation for the RAG pipeline.
 
-Parses text and markdown documents into structured representations.
-The old loader read from the filesystem; this version accepts content
-as strings so the upload handler can read the file.
+Validates file uploads by extension and size. Format-aware limits
+allow larger binary documents (PDF, DOCX, etc.) while keeping text
+uploads lightweight.
 """
 
 from __future__ import annotations
 
-import re
+# Supported extension sets — shared with FormatAwareProcessor for routing
+TEXT_EXTENSIONS: frozenset[str] = frozenset({".md", ".txt"})
+BINARY_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".pdf",
+        ".docx",
+        ".pptx",
+        ".xlsx",
+        ".html",
+        ".htm",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".tiff",
+        ".bmp",
+    }
+)
+SUPPORTED_EXTENSIONS: frozenset[str] = TEXT_EXTENSIONS | BINARY_EXTENSIONS
 
-import structlog
-
-from retriever.modules.rag.schemas import DocumentParser, ParsedDocument
-
-logger = structlog.get_logger()
-
-# Regex to match markdown H1 heading: # Title (at start of line)
-_MARKDOWN_H1_PATTERN = re.compile(r"^#\s+(.+)$", re.MULTILINE)
-
-# Supported file extensions
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".md", ".txt"})
-
-# Maximum file size: 1 MB
-MAX_FILE_SIZE: int = 1_048_576
+# Size limits
+MAX_FILE_SIZE_TEXT: int = 1_048_576  # 1 MB for text files
+MAX_FILE_SIZE_BINARY: int = 20_971_520  # 20 MB for binary files
 
 
 class FileValidationError(Exception):
     """Raised when a file fails upload validation."""
 
 
-class TextDocumentParser:
-    """Parser for plain-text and markdown documents.
-
-    Implements the DocumentParser protocol. Extracts title from the first
-    ``#`` heading for markdown files or uses the source as the title.
-    """
-
-    def parse(self, content: str, source: str) -> ParsedDocument:
-        """Parse raw document content into a structured representation.
-
-        Args:
-            content: Raw document text.
-            source: Source filename or identifier.
-
-        Returns:
-            Parsed document with extracted metadata.
-        """
-        is_markdown = source.lower().endswith(".md")
-        document_type = "markdown" if is_markdown else "text"
-        title = _extract_title(content, source, is_markdown=is_markdown)
-
-        logger.debug(
-            "document_parsed",
-            source=source,
-            title=title,
-            document_type=document_type,
-            content_length=len(content),
-        )
-
-        return ParsedDocument(
-            content=content,
-            source=source,
-            title=title,
-            document_type=document_type,
-        )
-
-
-# Verify TextDocumentParser satisfies the DocumentParser protocol
-_parser_check: DocumentParser = TextDocumentParser()
-
-
-def _extract_title(content: str, source: str, *, is_markdown: bool) -> str:
-    """Extract document title from content or source name.
-
-    For markdown files, looks for the first H1 heading (# Title).
-    Falls back to the source filename without extension.
+def get_extension(filename: str) -> str | None:
+    """Extract lowercase extension from a filename.
 
     Args:
-        content: Document content.
-        source: Source filename (used as fallback).
-        is_markdown: Whether the file is markdown format.
+        filename: The filename to inspect.
 
     Returns:
-        Extracted or derived title.
+        Extension including the dot (e.g. ".pdf"), or None if no extension.
     """
-    if is_markdown:
-        match = _MARKDOWN_H1_PATTERN.search(content)
-        if match:
-            return match.group(1).strip()
+    dot_pos = filename.rfind(".")
+    if dot_pos < 0:
+        return None
+    return filename[dot_pos:].lower()
 
-    # Fallback: strip the extension from the source filename
+
+def title_from_filename(source: str) -> str:
+    """Extract a title from a filename by stripping the extension.
+
+    Args:
+        source: Filename or source identifier.
+
+    Returns:
+        Filename stem (without extension).
+    """
     dot_pos = source.rfind(".")
     if dot_pos > 0:
         return source[:dot_pos]
@@ -100,6 +69,8 @@ def validate_file(filename: str, content_length: int) -> None:
     """Validate a file for upload.
 
     Checks filename extension, size, and hidden-file rules.
+    Applies format-aware size limits: text files limited to 1 MB,
+    binary files limited to 20 MB.
 
     Args:
         filename: The name of the file to validate.
@@ -113,24 +84,26 @@ def validate_file(filename: str, content_length: int) -> None:
         raise FileValidationError(f"Hidden files are not allowed: {filename}")
 
     # Check extension
-    dot_pos = filename.rfind(".")
-    if dot_pos < 0:
+    extension = get_extension(filename)
+    if extension is None:
         raise FileValidationError(
             f"File has no extension: {filename}. "
             f"Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
         )
 
-    extension = filename[dot_pos:].lower()
     if extension not in SUPPORTED_EXTENSIONS:
         raise FileValidationError(
             f"Unsupported file format: {extension}. "
             f"Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
         )
 
-    # Check size
-    if content_length > MAX_FILE_SIZE:
+    # Format-aware size limit
+    max_size = (
+        MAX_FILE_SIZE_TEXT if extension in TEXT_EXTENSIONS else MAX_FILE_SIZE_BINARY
+    )
+    if content_length > max_size:
         raise FileValidationError(
-            f"File too large: {content_length} bytes (max {MAX_FILE_SIZE} bytes)"
+            f"File too large: {content_length} bytes (max {max_size} bytes)"
         )
 
     if content_length == 0:

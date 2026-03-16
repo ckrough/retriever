@@ -1,6 +1,6 @@
 """Schemas for the RAG module.
 
-Pydantic models and Protocol definitions for document parsing, chunking,
+Pydantic models and Protocol definitions for document processing
 and retrieval-augmented generation.
 """
 
@@ -11,47 +11,6 @@ from typing import Any, Protocol, runtime_checkable
 from pydantic import BaseModel
 
 from retriever.infrastructure.vectordb.protocol import SearchResult
-
-
-@runtime_checkable
-class DocumentParser(Protocol):
-    """Protocol for document parsers.
-
-    Allows swapping in Docling or other parsers later.
-    """
-
-    def parse(self, content: str, source: str) -> ParsedDocument:
-        """Parse raw document content into a structured representation.
-
-        Args:
-            content: Raw document text.
-            source: Source filename or identifier.
-
-        Returns:
-            Parsed document with extracted metadata.
-        """
-        ...
-
-
-@runtime_checkable
-class DocumentChunker(Protocol):
-    """Protocol for document chunkers.
-
-    Allows swapping in Docling's HybridChunker later.
-    """
-
-    def chunk(self, content: str, source: str, *, title: str = "") -> list[Chunk]:
-        """Split document content into chunks for embedding.
-
-        Args:
-            content: Document text to chunk.
-            source: Source filename or identifier.
-            title: Document title.
-
-        Returns:
-            List of document chunks.
-        """
-        ...
 
 
 class ParsedDocument(BaseModel, frozen=True):
@@ -93,6 +52,40 @@ class Chunk(BaseModel, frozen=True):
             )
 
 
+class ProcessingResult(BaseModel, frozen=True):
+    """Result of processing a document through parse + chunk pipeline."""
+
+    document: ParsedDocument
+    chunks: list[Chunk]
+
+
+@runtime_checkable
+class DocumentProcessor(Protocol):
+    """Protocol for combined document parsing and chunking.
+
+    Implementations accept raw bytes and return structured chunks
+    ready for embedding. This replaces the separate DocumentParser
+    and DocumentChunker protocols to avoid stateful caching of
+    intermediate representations.
+    """
+
+    def process(self, content: bytes, source: str) -> ProcessingResult:
+        """Parse and chunk a document in one step.
+
+        Args:
+            content: Raw file bytes.
+            source: Source filename or identifier.
+
+        Returns:
+            Processing result with parsed document and chunks.
+
+        Raises:
+            DocumentConversionError: If conversion fails.
+            UnsupportedFormatError: If the format is not supported.
+        """
+        ...
+
+
 class ChunkWithScore(BaseModel, frozen=True):
     """A retrieved chunk with its similarity score."""
 
@@ -128,6 +121,7 @@ class IndexingResult(BaseModel, frozen=True):
     chunks_created: int
     success: bool
     error_message: str | None = None
+    parsed_title: str | None = None
 
 
 class RAGResponse(BaseModel, frozen=True):

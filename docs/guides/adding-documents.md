@@ -4,11 +4,18 @@ How to add, update, and manage shelter policy documents in Retriever.
 
 ## Supported Formats
 
-| Format | Extension | Notes |
-|--------|-----------|-------|
-| Markdown | `.md` | Preferred for new docs |
-| Plain text | `.txt` | Simple, universal |
-| Word | `.docx` | Most existing docs |
+| Format | Extension | Max Size | Notes |
+|--------|-----------|----------|-------|
+| Markdown | `.md` | 1 MB | Preferred for new docs |
+| Plain text | `.txt` | 1 MB | Simple, universal |
+| PDF | `.pdf` | 20 MB | ML-powered layout analysis, OCR, tables |
+| Word | `.docx` | 20 MB | Most existing docs |
+| PowerPoint | `.pptx` | 20 MB | Slides extracted as text |
+| Excel | `.xlsx` | 20 MB | Tables extracted |
+| HTML | `.html`, `.htm` | 20 MB | Web pages |
+| Images | `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp` | 20 MB | OCR text extraction |
+
+Document processing uses [Docling](https://github.com/docling-project/docling) for ML-powered parsing with structure-aware chunking.
 
 ## Document Location
 
@@ -119,15 +126,17 @@ This metadata appears in answer citations:
 
 ## Chunking Details
 
-Documents are split into chunks for retrieval:
-- **Chunk size:** ~1500 characters
-- **Overlap:** ~800 characters
-- **Splits on:** Section headers > Paragraphs > Sentences
+Documents are split into chunks using Docling's `HybridChunker`:
+- **Token budget:** 512 tokens per chunk (aligned with `text-embedding-3-small`)
+- **Structure-aware:** Respects document headings, paragraphs, and tables
+- **Heading context:** Each chunk includes its heading hierarchy for better retrieval
+- **Peer merging:** Small adjacent chunks under the same heading are merged
 
 **What this means:**
 - Large documents become multiple searchable chunks
-- Important context is preserved across chunk boundaries
-- Section headers help with source attribution
+- Heading context improves retrieval for section-level queries
+- Table content is properly extracted and searchable
+- Token-aware splitting aligns with the embedding model's context window
 
 ## Tips for Better Results
 

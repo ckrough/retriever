@@ -19,6 +19,24 @@
 	function formatDate(iso: string): string {
 		return new Date(iso).toLocaleDateString();
 	}
+
+	const mimeLabels: Record<string, string> = {
+		'text/markdown': 'Markdown',
+		'text/plain': 'Text',
+		'application/pdf': 'PDF',
+		'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
+		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
+		'text/html': 'HTML',
+		'image/png': 'PNG',
+		'image/jpeg': 'JPEG',
+		'image/tiff': 'TIFF',
+		'image/bmp': 'BMP'
+	};
+
+	function formatType(mime: string): string {
+		return mimeLabels[mime] ?? mime;
+	}
 </script>
 
 {#if documents.length === 0}
@@ -43,7 +61,7 @@
 					<tr class="border-b border-surface-500/10">
 						<td class="p-2">{doc.title}</td>
 						<td class="p-2 text-surface-400">{doc.filename}</td>
-						<td class="p-2">{doc.file_type}</td>
+						<td class="p-2">{formatType(doc.file_type)}</td>
 						<td class="p-2">{formatBytes(doc.file_size_bytes)}</td>
 						<td class="p-2">
 							{#if doc.is_indexed}
@@ -105,7 +123,7 @@
 					{/if}
 				</div>
 				<div class="mt-2 flex items-center justify-between text-sm text-surface-500">
-					<span>{doc.file_type} &middot; {formatBytes(doc.file_size_bytes)}</span>
+					<span>{formatType(doc.file_type)} &middot; {formatBytes(doc.file_size_bytes)}</span>
 					<span>{formatDate(doc.created_at)}</span>
 				</div>
 				<div class="mt-2">

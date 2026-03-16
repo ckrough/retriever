@@ -22,6 +22,8 @@ from retriever.infrastructure.vectordb.protocol import SearchResult
 from retriever.modules.rag.schemas import (
     Chunk,
     IndexingResult,
+    ParsedDocument,
+    ProcessingResult,
     RAGResponse,
 )
 from retriever.modules.rag.service import RAGService
@@ -48,6 +50,37 @@ def _search_result(
         source=source,
         title=title,
         score=score,
+    )
+
+
+def _processing_result(
+    source: str = "doc.pdf",
+    title: str = "Doc",
+) -> ProcessingResult:
+    """Build a ProcessingResult with sensible defaults."""
+    return ProcessingResult(
+        document=ParsedDocument(
+            content="text",
+            source=source,
+            title=title,
+            document_type="pdf",
+        ),
+        chunks=[
+            Chunk(
+                content="Chunk 1",
+                source=source,
+                section="s1",
+                position=0,
+                title=title,
+            ),
+            Chunk(
+                content="Chunk 2",
+                source=source,
+                section="s2",
+                position=1,
+                title=title,
+            ),
+        ],
     )
 
 
@@ -96,36 +129,11 @@ def mock_vector_store() -> AsyncMock:
 
 
 @pytest.fixture()
-def mock_parser() -> MagicMock:
-    """Return a mock document parser."""
-    parser = MagicMock()
-    parser.parse = MagicMock(return_value=MagicMock(content="text", source="doc.pdf"))
-    return parser
-
-
-@pytest.fixture()
-def mock_chunker() -> MagicMock:
-    """Return a mock document chunker."""
-    chunker = MagicMock()
-    chunker.chunk = MagicMock(
-        return_value=[
-            Chunk(
-                content="Chunk 1",
-                source="doc.pdf",
-                section="s1",
-                position=0,
-                title="Doc",
-            ),
-            Chunk(
-                content="Chunk 2",
-                source="doc.pdf",
-                section="s2",
-                position=1,
-                title="Doc",
-            ),
-        ]
-    )
-    return chunker
+def mock_processor() -> MagicMock:
+    """Return a mock document processor."""
+    processor = MagicMock()
+    processor.process = MagicMock(return_value=_processing_result())
+    return processor
 
 
 @pytest.fixture()
@@ -164,7 +172,11 @@ def mock_confidence_scorer() -> MagicMock:
         return_value=ConfidenceScore(
             level=ConfidenceLevel.HIGH,
             score=0.85,
-            factors={"retrieval_quality": 0.9, "chunk_coverage": 1.0, "grounding": 0.9},
+            factors={
+                "retrieval_quality": 0.9,
+                "chunk_coverage": 1.0,
+                "grounding": 0.9,
+            },
             needs_review=False,
         )
     )
@@ -176,8 +188,7 @@ def _build_service(
     mock_llm: AsyncMock,
     mock_embeddings: AsyncMock,
     mock_vector_store: AsyncMock,
-    mock_parser: MagicMock,
-    mock_chunker: MagicMock,
+    mock_processor: MagicMock,
     *,
     cache: AsyncMock | None = None,
     hybrid_retriever: AsyncMock | None = None,
@@ -191,8 +202,7 @@ def _build_service(
         llm_provider=mock_llm,
         embedding_provider=mock_embeddings,
         vector_store=mock_vector_store,
-        document_parser=mock_parser,
-        document_chunker=mock_chunker,
+        document_processor=mock_processor,
         semantic_cache=cache,
         hybrid_retriever=hybrid_retriever,
         safety_service=safety,
@@ -216,8 +226,7 @@ class TestAskBasicFlow:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """Basic flow: embed, retrieve, generate, return."""
         service = _build_service(
@@ -225,8 +234,7 @@ class TestAskBasicFlow:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
         )
 
         response = await service.ask("What time does the shelter open?")
@@ -237,13 +245,10 @@ class TestAskBasicFlow:
         assert len(response.chunks_used) == 2
         assert not response.blocked
 
-        # Verify embed was called
         mock_embeddings.embed.assert_awaited_once_with(
             "What time does the shelter open?"
         )
-        # Verify vector store was called
         mock_vector_store.search.assert_awaited_once()
-        # Verify LLM was called
         mock_llm.complete.assert_awaited_once()
 
 
@@ -262,8 +267,7 @@ class TestAskWithCache:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
         mock_cache: AsyncMock,
     ) -> None:
         """Cache hit returns cached answer without calling LLM."""
@@ -287,8 +291,7 @@ class TestAskWithCache:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             cache=mock_cache,
         )
 
@@ -297,10 +300,8 @@ class TestAskWithCache:
         assert response.answer == "Cached: The shelter opens at 9am."
         assert response.confidence_level == "high"
         assert len(response.chunks_used) == 1
-        # LLM should NOT have been called
         mock_llm.complete.assert_not_awaited()
         mock_llm.complete_with_history.assert_not_awaited()
-        # Vector store should NOT have been called
         mock_vector_store.search.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -310,8 +311,7 @@ class TestAskWithCache:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
         mock_cache: AsyncMock,
         mock_safety: MagicMock,
         mock_confidence_scorer: MagicMock,
@@ -322,8 +322,7 @@ class TestAskWithCache:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             cache=mock_cache,
             safety=mock_safety,
             confidence_scorer=mock_confidence_scorer,
@@ -332,9 +331,7 @@ class TestAskWithCache:
         response = await service.ask("What time does the shelter open?")
 
         assert response.answer == "The shelter opens at 9am."
-        # LLM should have been called
         mock_llm.complete.assert_awaited_once()
-        # Cache set should have been called (confidence is HIGH, not needs_review)
         mock_cache.set.assert_awaited_once()
 
 
@@ -353,8 +350,7 @@ class TestAskSafety:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """Safety check blocks unsafe input and returns blocked response."""
         mock_safety = MagicMock()
@@ -367,8 +363,7 @@ class TestAskSafety:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             safety=mock_safety,
         )
 
@@ -378,9 +373,7 @@ class TestAskSafety:
         assert response.blocked_reason == SafetyViolationType.PROMPT_INJECTION.value
         assert response.confidence_score == 0.0
         assert response.confidence_level == "low"
-        # LLM should NOT have been called
         mock_llm.complete.assert_not_awaited()
-        # Embeddings should NOT have been called
         mock_embeddings.embed.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -390,8 +383,7 @@ class TestAskSafety:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """Hallucination check blocks answer when not grounded."""
         mock_safety = MagicMock()
@@ -405,8 +397,7 @@ class TestAskSafety:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             safety=mock_safety,
         )
 
@@ -415,7 +406,7 @@ class TestAskSafety:
         assert response.blocked is True
         assert response.blocked_reason == SafetyViolationType.HALLUCINATION.value
         assert response.confidence_score == 0.0
-        assert len(response.chunks_used) == 2  # Chunks still returned
+        assert len(response.chunks_used) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -433,8 +424,7 @@ class TestAskNoDocuments:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """No chunks found uses fallback prompt."""
         mock_vector_store.search = AsyncMock(return_value=[])
@@ -447,8 +437,7 @@ class TestAskNoDocuments:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
         )
 
         response = await service.ask("What time does the shelter open?")
@@ -473,8 +462,7 @@ class TestAskHybridRetrieval:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """Hybrid retriever is used instead of vector store directly."""
         mock_hybrid = AsyncMock()
@@ -490,16 +478,13 @@ class TestAskHybridRetrieval:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             hybrid_retriever=mock_hybrid,
         )
 
         response = await service.ask("What time does the shelter open?")
 
-        # Hybrid retriever should have been called
         mock_hybrid.retrieve.assert_awaited_once()
-        # Vector store search should NOT have been called directly
         mock_vector_store.search.assert_not_awaited()
         assert len(response.chunks_used) == 2
         assert response.chunks_used[0].content == "Hybrid result 1"
@@ -520,8 +505,7 @@ class TestAskConversationHistory:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """Conversation history is passed to complete_with_history."""
         history: list[dict[str, str]] = [
@@ -534,8 +518,7 @@ class TestAskConversationHistory:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
         )
 
         await service.ask(
@@ -543,11 +526,9 @@ class TestAskConversationHistory:
             conversation_history=history,
         )
 
-        # Should use complete_with_history, not complete
         mock_llm.complete_with_history.assert_awaited_once()
         mock_llm.complete.assert_not_awaited()
 
-        # Verify messages include history + current question
         call_args = mock_llm.complete_with_history.call_args
         messages = call_args.kwargs["messages"]
         assert len(messages) == 3
@@ -573,8 +554,7 @@ class TestAskConfidenceScoring:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
         mock_safety: MagicMock,
         mock_confidence_scorer: MagicMock,
     ) -> None:
@@ -584,20 +564,18 @@ class TestAskConfidenceScoring:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             safety=mock_safety,
             confidence_scorer=mock_confidence_scorer,
         )
 
         response = await service.ask("What time does the shelter open?")
 
-        # Confidence scorer should have been called
         mock_confidence_scorer.score.assert_called_once()
         call_kwargs = mock_confidence_scorer.score.call_args.kwargs
         assert "chunk_scores" in call_kwargs
         assert "grounding_ratio" in call_kwargs
-        assert call_kwargs["grounding_ratio"] == 0.9  # from mock safety details
+        assert call_kwargs["grounding_ratio"] == 0.9
 
         assert response.confidence_level == "high"
         assert response.confidence_score == 0.85
@@ -618,22 +596,20 @@ class TestIndexDocument:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
-        """Index document: chunks, embeds, and upserts."""
+        """Index document: processes bytes, embeds, and upserts."""
         service = _build_service(
             mock_session_factory,
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
         )
 
         result = await service.index_document(
             document_id=DOC_ID,
-            content="Shelter policy content here.",
+            content=b"Shelter policy content here.",
             source="policy.pdf",
             title="Policy Manual",
         )
@@ -642,14 +618,11 @@ class TestIndexDocument:
         assert result.success is True
         assert result.chunks_created == 2
         assert result.source == "policy.pdf"
+        assert result.parsed_title == "Doc"
 
-        # Verify parser was called
-        mock_parser.parse.assert_called_once_with(
-            "Shelter policy content here.", "policy.pdf"
-        )
-        # Verify chunker was called
-        mock_chunker.chunk.assert_called_once_with(
-            "Shelter policy content here.", "policy.pdf", title="Policy Manual"
+        # Verify processor was called with bytes
+        mock_processor.process.assert_called_once_with(
+            b"Shelter policy content here.", "policy.pdf"
         )
         # Verify embeddings were generated
         mock_embeddings.embed_batch.assert_awaited_once_with(["Chunk 1", "Chunk 2"])
@@ -663,8 +636,7 @@ class TestIndexDocument:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """Index document returns failure result on error."""
         mock_embeddings.embed_batch = AsyncMock(
@@ -676,13 +648,12 @@ class TestIndexDocument:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
         )
 
         result = await service.index_document(
             document_id=DOC_ID,
-            content="Some content",
+            content=b"Some content",
             source="doc.pdf",
             title="Doc",
         )
@@ -691,6 +662,48 @@ class TestIndexDocument:
         assert result.chunks_created == 0
         assert result.error_message is not None
         assert "Embedding API down" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_index_document_empty_chunks(
+        self,
+        mock_session_factory: MagicMock,
+        mock_llm: AsyncMock,
+        mock_embeddings: AsyncMock,
+        mock_vector_store: AsyncMock,
+        mock_processor: MagicMock,
+    ) -> None:
+        """Index document with no chunks returns success with 0 chunks."""
+        mock_processor.process = MagicMock(
+            return_value=ProcessingResult(
+                document=ParsedDocument(
+                    content="",
+                    source="empty.md",
+                    title="empty",
+                    document_type="markdown",
+                ),
+                chunks=[],
+            )
+        )
+
+        service = _build_service(
+            mock_session_factory,
+            mock_llm,
+            mock_embeddings,
+            mock_vector_store,
+            mock_processor,
+        )
+
+        result = await service.index_document(
+            document_id=DOC_ID,
+            content=b"",
+            source="empty.md",
+            title="empty",
+        )
+
+        assert result.success is True
+        assert result.chunks_created == 0
+        assert result.parsed_title == "empty"
+        mock_embeddings.embed_batch.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -708,8 +721,7 @@ class TestClearCache:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
         mock_cache: AsyncMock,
     ) -> None:
         """Clear cache calls invalidate on the semantic cache."""
@@ -718,8 +730,7 @@ class TestClearCache:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             cache=mock_cache,
         )
 
@@ -734,8 +745,7 @@ class TestClearCache:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
         mock_cache: AsyncMock,
     ) -> None:
         """Clear cache with explicit tenant ID uses that tenant."""
@@ -746,8 +756,7 @@ class TestClearCache:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
             cache=mock_cache,
         )
 
@@ -762,8 +771,7 @@ class TestClearCache:
         mock_llm: AsyncMock,
         mock_embeddings: AsyncMock,
         mock_vector_store: AsyncMock,
-        mock_parser: MagicMock,
-        mock_chunker: MagicMock,
+        mock_processor: MagicMock,
     ) -> None:
         """Clear cache with no cache configured is a no-op."""
         service = _build_service(
@@ -771,9 +779,7 @@ class TestClearCache:
             mock_llm,
             mock_embeddings,
             mock_vector_store,
-            mock_parser,
-            mock_chunker,
+            mock_processor,
         )
 
-        # Should not raise
         await service.clear_cache()

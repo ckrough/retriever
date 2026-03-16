@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from retriever.modules.rag.dependencies import (
     _reset_dependencies,
     get_confidence_scorer,
+    get_document_processor,
     get_hybrid_retriever,
     get_message_repository,
     get_rag_service,
@@ -41,6 +42,12 @@ def _make_mock_settings(
     settings.hybrid_rrf_k = 60
     settings.moderation_enabled = moderation_enabled
     settings.rag_top_k = 5
+    settings.docling_ocr_enabled = True
+    settings.docling_table_extraction = True
+    settings.docling_picture_description = False
+    settings.docling_max_pages = 100
+    settings.docling_chunk_max_tokens = 512
+    settings.docling_merge_peers = True
     return settings
 
 
@@ -181,3 +188,19 @@ def test_get_message_repository_creates_repo(mock_factory: MagicMock) -> None:
     repo = get_message_repository()
 
     assert repo is not None
+
+
+# ── get_document_processor ────────────────────────────────────────────────
+
+
+@patch("retriever.modules.rag.dependencies.get_settings")
+def test_get_document_processor_returns_format_aware(
+    mock_get_settings: MagicMock,
+) -> None:
+    from retriever.modules.rag.docling_processor import FormatAwareProcessor
+
+    mock_get_settings.return_value = _make_mock_settings()
+
+    processor = get_document_processor()
+
+    assert isinstance(processor, FormatAwareProcessor)

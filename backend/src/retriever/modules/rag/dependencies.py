@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+if TYPE_CHECKING:
+    from retriever.modules.rag.docling_processor import FormatAwareProcessor
 
 from retriever.config import get_settings
 from retriever.infrastructure.cache.pg_cache import PgSemanticCache
@@ -17,8 +22,6 @@ from retriever.infrastructure.safety.service import SafetyService
 from retriever.infrastructure.vectordb.pgvector_store import PgVectorStore
 from retriever.models.user import DEFAULT_TENANT_ID
 from retriever.modules.messages.repos import MessageRepository
-from retriever.modules.rag.chunker import HierarchicalChunker
-from retriever.modules.rag.loader import TextDocumentParser
 from retriever.modules.rag.retriever import HybridRetriever
 from retriever.modules.rag.service import RAGService
 
@@ -145,6 +148,33 @@ def get_confidence_scorer() -> ConfidenceScorer:
     return ConfidenceScorer()
 
 
+def get_document_processor() -> FormatAwareProcessor:
+    """Create a format-aware document processor from settings.
+
+    Routes text files through a lightweight pipeline and binary
+    formats through Docling's full ML pipeline (lazy-initialized).
+
+    Returns:
+        Configured FormatAwareProcessor.
+    """
+    from retriever.modules.rag.docling_processor import (
+        DoclingConfig,
+        DoclingProcessor,
+        FormatAwareProcessor,
+    )
+
+    settings = get_settings()
+    config = DoclingConfig(
+        ocr_enabled=settings.docling_ocr_enabled,
+        table_extraction=settings.docling_table_extraction,
+        picture_description=settings.docling_picture_description,
+        max_pages=settings.docling_max_pages,
+        chunk_max_tokens=settings.docling_chunk_max_tokens,
+        merge_peers=settings.docling_merge_peers,
+    )
+    return FormatAwareProcessor(docling=DoclingProcessor(config=config))
+
+
 def get_rag_service() -> RAGService:
     """Get or create the RAG service singleton.
 
@@ -161,8 +191,7 @@ def get_rag_service() -> RAGService:
             llm_provider=get_llm_provider(),
             embedding_provider=get_embedding_provider(),
             vector_store=get_vector_store(),
-            document_parser=TextDocumentParser(),
-            document_chunker=HierarchicalChunker(),
+            document_processor=get_document_processor(),
             semantic_cache=get_semantic_cache(),
             hybrid_retriever=get_hybrid_retriever(),
             safety_service=get_safety_service(),
