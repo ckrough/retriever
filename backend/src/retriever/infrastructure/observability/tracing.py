@@ -26,7 +26,9 @@ from opentelemetry.semconv.resource import ResourceAttributes
 logger = structlog.get_logger(__name__)
 
 
-def _build_exporter(*, gcp_project_id: str, debug: bool) -> SpanExporter | None:
+def _build_exporter(
+    *, gcp_project_id: str, debug: bool, otlp_endpoint: str = ""
+) -> SpanExporter | None:
     """Select the appropriate span exporter based on environment.
 
     Priority:
@@ -49,15 +51,17 @@ def _build_exporter(*, gcp_project_id: str, debug: bool) -> SpanExporter | None:
             # GCP credentials not available (local dev without ADC)
             logger.warning("tracing.exporter.gcp_auth_failed", exc_info=True)
 
-    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    if otlp_endpoint:
+    resolved_endpoint = otlp_endpoint or os.environ.get(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", ""
+    )
+    if resolved_endpoint:
         try:
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
                 OTLPSpanExporter,
             )
 
-            logger.info("tracing.exporter.otlp", endpoint=otlp_endpoint)
-            return OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+            logger.info("tracing.exporter.otlp", endpoint=resolved_endpoint)
+            return OTLPSpanExporter(endpoint=resolved_endpoint, insecure=True)
         except ImportError:
             logger.warning("tracing.exporter.otlp_unavailable")
 
@@ -94,6 +98,7 @@ def configure_tracing(
     sample_rate: float = 1.0,
     app: FastAPI | None = None,
     enabled: bool = True,
+    otlp_endpoint: str = "",
 ) -> None:
     """Configure OTel tracing with the appropriate exporter.
 
@@ -104,6 +109,7 @@ def configure_tracing(
         sample_rate: Fraction of traces to sample (0.0–1.0).
         app: FastAPI app instance for auto-instrumentation.
         enabled: Master switch — when False, tracing is fully disabled.
+        otlp_endpoint: OTLP/gRPC endpoint (e.g. http://localhost:4317).
     """
     if not enabled:
         logger.info("tracing.disabled")
@@ -113,7 +119,9 @@ def configure_tracing(
     sampler = TraceIdRatioBased(sample_rate)
     provider = TracerProvider(resource=resource, sampler=sampler)
 
-    exporter = _build_exporter(gcp_project_id=gcp_project_id, debug=debug)
+    exporter = _build_exporter(
+        gcp_project_id=gcp_project_id, debug=debug, otlp_endpoint=otlp_endpoint
+    )
     if exporter is not None:
         provider.add_span_processor(BatchSpanProcessor(exporter))
 

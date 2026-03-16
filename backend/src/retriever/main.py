@@ -135,6 +135,7 @@ def create_app() -> FastAPI:
         sample_rate=settings.otel_trace_sample_rate,
         app=app,
         enabled=settings.otel_enabled,
+        otlp_endpoint=settings.otel_exporter_otlp_endpoint,
     )
 
     # Langfuse LLM observability

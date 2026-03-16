@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     # OpenTelemetry
     otel_enabled: bool = True
     otel_trace_sample_rate: float = 1.0
+    otel_exporter_otlp_endpoint: str = ""
 
     # Database
     database_require_ssl: bool = False  # True in production (Supabase / Cloud Run)
