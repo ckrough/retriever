@@ -32,6 +32,7 @@ dependencies = [
     "opentelemetry-exporter-gcp-trace>=1.8",
     "opentelemetry-resourcedetector-gcp>=1.8",
     "langfuse>=3.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.28",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -93,7 +94,6 @@ dev = [
     "pytest-cov>=7.0.0",
     "respx>=0.22.0",
     "ruff>=0.8",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.28",
 ]
 
 [tool.semantic_release]

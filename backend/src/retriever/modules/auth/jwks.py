@@ -22,5 +22,5 @@ class JwksValidator:
             token,
             signing_key.key,
             algorithms=["RS256", "ES256"],
-            options={"verify_aud": False},  # Supabase omits aud by default
+            audience="authenticated",  # Supabase default audience claim
         )

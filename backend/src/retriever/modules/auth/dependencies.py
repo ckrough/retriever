@@ -1,5 +1,6 @@
 """FastAPI auth dependencies for route protection."""
 
+from functools import lru_cache
 from typing import Annotated
 
 import jwt
@@ -13,9 +14,11 @@ from retriever.modules.auth.schemas import AuthUser
 _bearer = HTTPBearer()
 
 
+@lru_cache(maxsize=1)
 def _get_validator() -> JwksValidator:
-    # PyJWKClient caches keys with a 300-second TTL, so no lru_cache here —
-    # this lets Supabase key rotations be picked up without a process restart.
+    # Singleton: PyJWKClient(cache_keys=True) already handles key rotation
+    # with a 300-second TTL, so a single instance is safe and avoids a
+    # JWKS endpoint fetch on every authenticated request.
     settings = get_settings()
     if not settings.supabase_url:
         raise RuntimeError("SUPABASE_URL is not configured — cannot validate JWTs")

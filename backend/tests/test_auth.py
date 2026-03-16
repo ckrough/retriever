@@ -32,6 +32,7 @@ def _make_token(
     payload: dict[str, Any] = {
         "sub": sub,
         "email": email,
+        "aud": "authenticated",
         "app_metadata": {"is_admin": is_admin},
         "iat": int(time.time()),
         "exp": int(time.time()) + exp_offset,
@@ -96,7 +97,9 @@ def test_decode_invalid_signature() -> None:
         serialization.NoEncryption(),
     )
     token = jwt.encode(
-        {"sub": "x", "exp": int(time.time()) + 60}, other_pem, algorithm="RS256"
+        {"sub": "x", "aud": "authenticated", "exp": int(time.time()) + 60},
+        other_pem,
+        algorithm="RS256",
     )
     validator = _make_validator()
     with pytest.raises(jwt.InvalidSignatureError):
