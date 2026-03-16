@@ -35,6 +35,7 @@ dependencies = [
     "opentelemetry-resourcedetector-gcp>=1.8",
     "langfuse>=3.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.28",
+    "easyocr>=1.7.2",
 ]
 
 [tool.hatch.build.targets.wheel]
