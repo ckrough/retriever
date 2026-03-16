@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-03-16)
+
+### Chores
+
+- Add easyocr dependency for Docling PDF OCR ([#23](https://github.com/ckrough/retriever/pull/23),
+  [`f16b724`](https://github.com/ckrough/retriever/commit/f16b724bd40a70588b23aeb5148a02bbbf97d3b7))
+
+- Update GitHub Actions to Node.js 24-compatible versions
+  ([#23](https://github.com/ckrough/retriever/pull/23),
+  [`f16b724`](https://github.com/ckrough/retriever/commit/f16b724bd40a70588b23aeb5148a02bbbf97d3b7))
+
+### Features
+
+- Replace custom parser+chunker with Docling for multi-format document processing
+  ([#23](https://github.com/ckrough/retriever/pull/23),
+  [`f16b724`](https://github.com/ckrough/retriever/commit/f16b724bd40a70588b23aeb5148a02bbbf97d3b7))
+
+
 ## v1.2.0 (2026-03-16)
 
 ### Bug Fixes
