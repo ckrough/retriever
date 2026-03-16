@@ -36,60 +36,34 @@ Retriever can be adapted for any organization with documentation that users need
 
 ### Prerequisites
 
-- Python 3.13+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- API keys for:
-  - [OpenRouter](https://openrouter.ai/keys) (for LLM access)
-  - [OpenAI](https://platform.openai.com/api-keys) (for embeddings and moderation — free tier available)
+- Python 3.13+ with [uv](https://docs.astral.sh/uv/)
+- Node.js 22+
+- Docker
+- [Supabase CLI](https://supabase.com/docs/guides/cli)
+- API keys: [OpenRouter](https://openrouter.ai/keys) (LLM) and [OpenAI](https://platform.openai.com/api-keys) (embeddings/moderation)
 
-### Installation
+### Get Running
 
 ```bash
-# Clone the repository
 git clone https://github.com/your-org/retriever.git
 cd retriever
-
-# Install dependencies
-uv sync --extra dev
-
-# Copy environment template
 cp .env.example .env
+# Edit .env with your API keys
+
+supabase start                    # Auth + Supabase services
+docker compose up -d              # pgvector postgres + jaeger
+
+cd backend && uv sync --dev
+uv run alembic upgrade head
+uv run uvicorn retriever.main:app --reload --port 8000
+
+# In a separate terminal:
+cd frontend && npm install && npm run dev
 ```
 
-### Configuration
+Backend API: [http://localhost:8000/docs](http://localhost:8000/docs) | Frontend: [http://localhost:5173](http://localhost:5173)
 
-Edit `.env` with your API keys:
-
-```bash
-# Required
-OPENROUTER_API_KEY=your-openrouter-key
-OPENAI_API_KEY=your-openai-key
-JWT_SECRET_KEY=generate-a-random-secret-key
-
-# Optional (defaults work for local development)
-LLM_MODEL=anthropic/claude-sonnet-4
-DEBUG=true
-```
-
-### Add Your Documents
-
-Place your markdown (`.md`) or text (`.txt`) documents in the `documents/` directory:
-
-```
-documents/
-├── employee-handbook.md
-├── safety-procedures.md
-└── faq.txt
-```
-
-### Run
-
-```bash
-# Start the development server
-uv run uvicorn src.main:app --reload --port 8000
-```
-
-Visit [http://localhost:8000](http://localhost:8000) to start asking questions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, quality checks, and workflow.
 
 ## Usage
 
@@ -116,22 +90,14 @@ API documentation is available at `/docs` (OpenAPI/Swagger).
 
 ## Configuration
 
-### Environment Variables
+See `.env.example` for all configuration options. Required API keys:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENROUTER_API_KEY` | API key for LLM provider | Required |
-| `OPENAI_API_KEY` | API key for embeddings/moderation | Required |
-| `JWT_SECRET_KEY` | Secret for JWT token signing | Required |
-| `LLM_MODEL` | Primary LLM model | `anthropic/claude-sonnet-4` |
-| `LLM_FALLBACK_MODEL` | Fallback model | `anthropic/claude-haiku` |
-| `RAG_CHUNK_SIZE` | Document chunk size (chars) | `1500` |
-| `RAG_TOP_K` | Number of chunks to retrieve | `5` |
-| `RATE_LIMIT_REQUESTS` | Requests per window | `10` |
-| `CACHE_ENABLED` | Enable semantic caching | `true` |
-| `AUTH_ENABLED` | Require authentication | `true` |
+| Variable | Description |
+|----------|-------------|
+| `OPENROUTER_API_KEY` | LLM provider API key |
+| `OPENAI_API_KEY` | Embeddings and moderation API key |
 
-See `.env.example` for the complete list of configuration options.
+Auth is handled by Supabase (local via `supabase start`, production via Supabase project). See [CONTRIBUTING.md](CONTRIBUTING.md) for full environment setup.
 
 ### Document Preparation
 
@@ -144,124 +110,25 @@ For best results:
 
 ## Deployment
 
-Retriever can be deployed to any platform that supports Python applications.
-
-### Docker
-
-**Prerequisites:**
-- Docker and docker-compose compatible container tool installed
-- `.env` file configured with your API keys
-
-**Build and run:**
-
-```bash
-# Build the production image
-docker build -t retriever:latest .
-
-# Run with docker-compose (recommended)
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f retriever
-
-# Check health
-curl http://localhost:8000/health
-```
-
-**Alternative: Run with docker directly**
-
-```bash
-docker run -d \
-  --name retriever \
-  -p 8000:8000 \
-  --env-file .env \
-  -v retriever-data:/app/data \
-  -v retriever-documents:/app/documents \
-  retriever:latest
-```
-
-**Create a user:**
-
-The database is inside the container, so you need to execute the script within the running container:
-
-```bash
-# Using docker-compose (recommended)
-docker-compose exec retriever uv run python scripts/create_user.py
-
-# Or using docker directly
-docker exec -it retriever uv run python scripts/create_user.py
-```
-
-**Volume Management:**
-
-```bash
-# List volumes
-docker volume ls
-
-# Backup data
-docker run --rm \
-  -v retriever-data:/data \
-  -v $(pwd):/backup \
-  alpine tar czf /backup/retriever-data-backup.tar.gz /data
-
-# Restore data
-docker run --rm \
-  -v retriever-data:/data \
-  -v $(pwd):/backup \
-  alpine tar xzf /backup/retriever-data-backup.tar.gz -C /
-
-# Stop containers (preserves volumes)
-docker-compose down
-
-# Stop and DELETE volumes (CAUTION: destroys all data)
-docker-compose down -v
-```
-
-**Troubleshooting:**
-
-| Issue | Solution |
-|-------|----------|
-| Port 8000 already in use | Change port: `docker run -p 8001:8000 ...` |
-| Health check failing | Check logs: `docker-compose logs retriever` |
-| Cannot write to `/app/data` | Verify container runs as `appuser` (uid 1000) |
-| Missing environment variables | Ensure `.env` file exists with all required keys |
-| Old code running after changes | Rebuild image: `docker-compose build --no-cache` |
-
-**Environment Variables:**
-
-See `.env.example` for the complete list. Required:
-- `OPENROUTER_API_KEY` — OpenRouter API key
-- `OPENAI_API_KEY` — OpenAI API key
-- `JWT_SECRET_KEY` — Generate with `openssl rand -base64 32`
-
-**What gets persisted:**
-- `retriever-data` volume → SQLite database + Chroma vector store
-- `retriever-documents` volume → Uploaded policy documents
-
-### Railway / Render
-
-1. Connect your repository
-2. Set environment variables in the dashboard
-3. Deploy
+- **Backend:** Cloud Run via `gcloud run deploy --source ./backend`
+- **Frontend:** Cloudflare Pages
+- **Database:** Supabase (managed Postgres + pgvector)
 
 ### Production Checklist
 
 - [ ] Set `DEBUG=false`
-- [ ] Use a strong `JWT_SECRET_KEY` (32+ characters, random)
-- [ ] Configure rate limiting appropriately for your traffic
-- [ ] Set up monitoring (Sentry DSN in `SENTRY_DSN`)
-- [ ] Use persistent storage for `data/` directory (volumes in Docker, mounted storage on cloud platforms)
-- [ ] Test the Docker image locally before cloud deployment
-- [ ] Enable HTTPS in production (handled by Cloud Run, Railway, Render)
+- [ ] Configure Supabase project with RLS policies
+- [ ] Set up Cloudflare AI Gateway for LLM routing
+- [ ] Configure OpenTelemetry (GCP Cloud Trace or OTLP endpoint)
+- [ ] Enable Langfuse for LLM observability (optional)
+- [ ] HTTPS handled by Cloud Run / Cloudflare Pages
 
 ## Architecture
-
-Retriever uses a modular monolith architecture with clean separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    DOCUMENT PIPELINE                         │
-│  [Markdown/Text] → [Chunker] → [Embeddings] → [Vector DB]    │
+│  [Markdown/Text] → [Chunker] → [Embeddings] → [pgvector]     │
 └─────────────────────────────────────────────────────────────┘
                                                     ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -271,28 +138,17 @@ Retriever uses a modular monolith architecture with clean separation of concerns
 ```
 
 **Tech Stack:**
-- **Backend:** Python 3.13+, FastAPI, Pydantic
-- **LLM:** Claude via OpenRouter
-- **Vector DB:** Chroma (embedded)
-- **Frontend:** Jinja2 + HTMX + Tailwind CSS
-- **Database:** SQLite
+- **Backend:** Python 3.13+, FastAPI, SQLAlchemy 2.0 async, Pydantic 2.x
+- **LLM:** OpenRouter via Cloudflare AI Gateway
+- **Vector DB:** Supabase Postgres + pgvector (HNSW cosine + GIN full-text)
+- **Frontend:** SvelteKit + Svelte 5 runes + Skeleton UI v4
+- **Auth:** Supabase Auth / JWKS
+- **Observability:** structlog + OpenTelemetry + Langfuse
+- **Deploy:** Cloud Run (backend), Cloudflare Pages (frontend)
 
 ## Development
 
-```bash
-# Run tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=src --cov-report=term-missing
-
-# Linting and formatting
-uv run ruff check src/ tests/ --fix
-uv run ruff format src/ tests/
-
-# Type checking
-uv run mypy src/ --strict
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full setup and quality check commands.
 
 ## Documentation
 

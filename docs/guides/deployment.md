@@ -2,256 +2,218 @@
 
 How to deploy Retriever to production.
 
-## Deployment Options
+## Architecture
 
-| Platform | Free Tier | Notes | Recommended For |
-|----------|-----------|-------|-----------------|
-| **Docker** | N/A | Full control, portable | Testing production build locally |
-| Railway | 500 hours/month | Simple, good DX | Quick MVP deployment |
-| Render | 750 hours/month | Easy setup | Quick MVP deployment |
-| **Google Cloud Run** | Free tier available | Serverless, auto-scaling | Production scale |
+| Component | Platform | Method |
+|-----------|----------|--------|
+| Backend | Google Cloud Run | `gcloud run deploy --source ./backend` |
+| Frontend | Cloudflare Pages | Git-connected or `wrangler pages deploy` |
+| Database | Supabase | Managed Postgres + pgvector |
+| Auth | Supabase Auth | Managed, JWKS endpoint for JWT verification |
+| LLM Gateway | Cloudflare AI Gateway | Routes OpenRouter + OpenAI traffic |
 
-Choose based on your needs:
-- **Docker** (local): Test production build before deploying
-- **Railway/Render**: Quick MVP deployment with minimal setup
-- **Cloud Run**: Production-ready with auto-scaling (see [Cloud Run Guide](./cloudrun-deployment.md))
+## Prerequisites
 
-## Docker Deployment
-
-Docker provides a production-ready containerized environment that can run locally or be deployed to any cloud platform.
-
-### Prerequisites
-
-- Docker and docker-compose installed
-- `.env` file with all required API keys
-
-### Quick Start
-
-```bash
-# Build the production image
-docker build -t retriever:latest .
-
-# Run with docker-compose (recommended)
-docker-compose up -d
-
-# Check health
-curl http://localhost:8000/health
-
-# View logs
-docker-compose logs -f retriever
-
-# Create a user
-docker-compose exec retriever uv run python scripts/create_user.py
-```
-
-### Configuration
-
-All configuration via environment variables. Create a `.env` file:
-
-```bash
-# Required
-OPENROUTER_API_KEY=your-openrouter-key
-OPENAI_API_KEY=your-openai-key
-JWT_SECRET_KEY=generate-random-secret-32-chars
-
-# Optional (defaults shown)
-DEBUG=false
-PORT=8000
-DATABASE_PATH=/app/data/retriever.db
-CHROMA_PERSIST_PATH=/app/data/chroma
-```
-
-### Data Persistence
-
-Docker uses named volumes for persistent data:
-
-- `retriever-data` → SQLite database + Chroma vector store
-- `retriever-documents` → Uploaded policy documents
-
-**Backup data:**
-
-```bash
-docker run --rm \
-  -v retriever-data:/app/data \
-  -v $(pwd):/backup \
-  retriever:latest tar czf /backup/retriever-data-backup.tar.gz /app/data
-```
-
-**Restore data:**
-
-```bash
-docker run --rm \
-  -v retriever-data:/app/data \
-  -v $(pwd):/backup \
-  retriever:latest tar xzf /backup/retriever-data-backup.tar.gz -C /
-```
-
-### Deploying to Cloud Run
-
-See [Cloud Run Deployment Guide](./cloudrun-deployment.md) for detailed instructions including:
-- One-time GCP project setup
-- Secret Manager configuration
-- Deployment commands for staging/production
+- Google Cloud account with billing enabled
+- `gcloud` CLI configured and authenticated
+- Cloudflare account (for Pages + AI Gateway)
+- Supabase project created
+- API keys ready:
+  - OpenRouter API key ([get here](https://openrouter.ai/keys))
+  - OpenAI API key ([get here](https://platform.openai.com/api-keys))
 
 ---
 
-## Railway / Render Deployment
+## Backend: Cloud Run
 
-### Prerequisites
+### One-Command Deploy
 
-1. GitHub repository with code
-2. Platform account (Railway or Render)
-3. Environment variables ready:
-   - `OPENROUTER_API_KEY`
-   - `OPENAI_API_KEY` (for embeddings)
-   - `SENTRY_DSN` (optional)
-   - `SECRET_KEY` (for JWT)
-
-## Railway Deployment
-
-### 1. Connect Repository
-
-1. Go to [railway.app](https://railway.app)
-2. Click "New Project" → "Deploy from GitHub repo"
-3. Select your repository
-4. Railway auto-detects Python
-
-### 2. Configure Environment
-
-In Railway dashboard → Variables:
-
-```
-OPENROUTER_API_KEY=sk-or-...
-OPENAI_API_KEY=sk-...
-SECRET_KEY=<generate-random-string>
-ENVIRONMENT=production
+```bash
+gcloud run deploy retriever \
+    --source ./backend \
+    --region us-central1 \
+    --project $PROJECT_ID \
+    --allow-unauthenticated \
+    --memory 1Gi \
+    --cpu 1 \
+    --min-instances 0 \
+    --max-instances 10 \
+    --timeout 60 \
+    --set-env-vars "DEBUG=false" \
+    --set-secrets "OPENROUTER_API_KEY=retriever-openrouter-api-key:latest,OPENAI_API_KEY=retriever-openai-api-key:latest,DATABASE_URL=retriever-database-url:latest"
 ```
 
-### 3. Configure Build
+This builds the container from source using Cloud Build and deploys it in one step. No local Docker build required.
 
-Railway should auto-detect, but if needed create `railway.toml`:
+### Secret Manager Setup
 
-```toml
-[build]
-builder = "nixpacks"
+Create secrets before first deploy:
 
-[deploy]
-startCommand = "uvicorn src.main:app --host 0.0.0.0 --port $PORT"
+```bash
+export PROJECT_ID=your-project-id
+
+# Create secrets
+echo -n "placeholder" | gcloud secrets create retriever-openrouter-api-key --data-file=- --project="$PROJECT_ID"
+echo -n "placeholder" | gcloud secrets create retriever-openai-api-key --data-file=- --project="$PROJECT_ID"
+echo -n "placeholder" | gcloud secrets create retriever-database-url --data-file=- --project="$PROJECT_ID"
+
+# Update with real values
+echo -n 'sk-or-v1-your-key' | gcloud secrets versions add retriever-openrouter-api-key --data-file=- --project="$PROJECT_ID"
+echo -n 'sk-your-key' | gcloud secrets versions add retriever-openai-api-key --data-file=- --project="$PROJECT_ID"
+echo -n 'postgresql+asyncpg://...' | gcloud secrets versions add retriever-database-url --data-file=- --project="$PROJECT_ID"
+
+# Grant Cloud Run access
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
+for SECRET in retriever-openrouter-api-key retriever-openai-api-key retriever-database-url; do
+  gcloud secrets add-iam-policy-binding $SECRET \
+      --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+      --role="roles/secretmanager.secretAccessor" \
+      --project="$PROJECT_ID"
+done
 ```
 
-### 4. Add Persistent Storage
+### Verify Deployment
 
-For SQLite and Chroma data:
-
-1. Railway dashboard → Add Volume
-2. Mount path: `/app/data`
-3. Update app to use `/app/data` for storage
-
-### 5. Custom Domain (Optional)
-
-1. Settings → Domains
-2. Add custom domain
-3. Configure DNS CNAME
-
-## Render Deployment
-
-### 1. Create Web Service
-
-1. Go to [render.com](https://render.com)
-2. New → Web Service
-3. Connect GitHub repository
-
-### 2. Configure Service
-
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: retriever
-    env: python
-    buildCommand: pip install -e .
-    startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: OPENROUTER_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: SECRET_KEY
-        generateValue: true
+```bash
+SERVICE_URL=$(gcloud run services describe retriever --region us-central1 --project $PROJECT_ID --format="value(status.url)")
+curl $SERVICE_URL/health
 ```
 
-### 3. Add Persistent Disk
+See [Cloud Run Deployment Guide](./cloudrun-deployment.md) for detailed step-by-step instructions.
 
-1. Service settings → Add Disk
-2. Mount path: `/app/data`
-3. Size: 1GB (sufficient for MVP)
+---
 
-## Post-Deployment Checklist
+## Frontend: Cloudflare Pages
 
-- [ ] Health check endpoint responds: `GET /health`
-- [ ] Can log in with test user
-- [ ] Can ask a question and get answer
-- [ ] Errors appear in Sentry (if configured)
-- [ ] SSL certificate active
+### Git-Connected Deploy (Recommended)
 
-## Environment Variables Reference
+1. Go to Cloudflare Dashboard > Pages
+2. Connect your GitHub repository
+3. Configure build settings:
+   - **Build command:** `npm run build`
+   - **Build output directory:** `.svelte-kit/cloudflare`
+   - **Root directory:** `frontend`
+4. Add environment variables:
+   - `PUBLIC_SUPABASE_URL`
+   - `PUBLIC_SUPABASE_ANON_KEY`
+   - `PUBLIC_API_BASE_URL` (Cloud Run backend URL)
+
+### Manual Deploy
+
+```bash
+cd frontend
+npm run build
+npx wrangler pages deploy .svelte-kit/cloudflare --project-name=retriever
+```
+
+---
+
+## Database: Supabase
+
+### Setup
+
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Enable pgvector extension: SQL Editor > `CREATE EXTENSION IF NOT EXISTS vector;`
+3. Run Alembic migrations against the Supabase database:
+   ```bash
+   cd backend
+   DATABASE_URL="postgresql+asyncpg://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres" \
+       uv run alembic upgrade head
+   ```
+4. Configure RLS policies for the `messages`, `documents`, and `users` tables
+
+### Connection String
+
+Use the Supabase connection pooler URL (port 6543) for the `DATABASE_URL` environment variable. Format:
+
+```
+postgresql+asyncpg://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+```
+
+---
+
+## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for Claude |
+| `DATABASE_URL` | Yes | Supabase Postgres connection string (asyncpg) |
+| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for LLM |
 | `OPENAI_API_KEY` | Yes | OpenAI API key for embeddings |
-| `SECRET_KEY` | Yes | Random string for JWT signing |
-| `SENTRY_DSN` | No | Sentry error tracking DSN |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
+| `CLOUDFLARE_ACCOUNT_ID` | No | Cloudflare account ID (enables AI Gateway) |
+| `CLOUDFLARE_GATEWAY_ID` | No | Cloudflare gateway ID (enables AI Gateway) |
+| `LANGFUSE_SECRET_KEY` | No | Langfuse secret key (LLM observability) |
+| `LANGFUSE_PUBLIC_KEY` | No | Langfuse public key |
+| `LANGFUSE_HOST` | No | Langfuse host URL |
+| `GCP_PROJECT_ID` | No | GCP project (enables Cloud Trace exporter) |
 | `ENVIRONMENT` | No | `development` or `production` |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
-## Initial Document Indexing
+---
 
-After deployment:
+## Production Checklist
 
-1. Upload documents to `documents/` directory
-2. Trigger reindex via admin UI or API:
-   ```bash
-   curl -X POST https://your-app.railway.app/admin/reindex \
-        -H "Authorization: Bearer $ADMIN_TOKEN"
-   ```
-3. Verify documents indexed in admin dashboard
+- [ ] Supabase project created with pgvector extension enabled
+- [ ] Alembic migrations applied to Supabase database
+- [ ] RLS policies configured for all tables
+- [ ] GCP Secret Manager secrets created and populated
+- [ ] Backend deployed to Cloud Run: `gcloud run deploy --source ./backend`
+- [ ] Frontend deployed to Cloudflare Pages
+- [ ] Health check responds: `GET /health`
+- [ ] Admin user created in Supabase Auth dashboard
+- [ ] Can log in and ask a question
+- [ ] SSL certificates active (automatic on both platforms)
+- [ ] Cloudflare AI Gateway configured (optional but recommended)
+- [ ] Langfuse configured for LLM observability (optional)
+- [ ] GCP Cloud Trace enabled for distributed tracing (optional)
+
+---
 
 ## Monitoring
 
 ### Health Checks
 
 ```
-GET /health        → Basic liveness
-GET /health/ready  → Dependencies OK
+GET /health    → Liveness + DB + pgvector checks
 ```
 
-### Uptime Monitoring
+### Logs
 
-Set up external monitoring (free options):
-- UptimeRobot
-- Checkly
-- Better Uptime
+```bash
+# Cloud Run logs
+gcloud run services logs read retriever --region us-central1 --project $PROJECT_ID --limit 50
+```
 
-Configure to check `/health` every 5 minutes.
+### Observability
+
+- **Structured logs:** JSON via structlog (visible in Cloud Run logs)
+- **Distributed tracing:** GCP Cloud Trace (if `GCP_PROJECT_ID` set) or Jaeger (if `OTEL_EXPORTER_OTLP_ENDPOINT` set)
+- **LLM observability:** Langfuse (if credentials configured)
+
+---
 
 ## Scaling
 
-For MVP scale (50-100 volunteers), single instance is sufficient.
+Cloud Run auto-scales from 0 to `max-instances`. For MVP scale (50-100 volunteers), default settings are sufficient.
 
 If needed:
-1. Increase instance size before adding instances
-2. Consider managed database if SQLite becomes bottleneck
+1. Increase `--memory` and `--cpu` before adding instances
+2. Enable Supabase connection pooling (PgBouncer) if connection limits hit
 3. See [Future: Production Hardening](../implementation-plan.md#future-production-hardening-post-validation)
+
+---
 
 ## Rollback
 
-If deployment fails:
+**Backend (Cloud Run):**
+```bash
+# List revisions
+gcloud run revisions list --service retriever --region us-central1 --project $PROJECT_ID
 
-**Railway:**
-1. Deployments → Select previous successful deploy
-2. Click "Redeploy"
+# Route traffic to previous revision
+gcloud run services update-traffic retriever --to-revisions=REVISION_NAME=100 --region us-central1 --project $PROJECT_ID
+```
 
-**Render:**
-1. Events → Find previous deploy
-2. Click "Rollback"
+**Frontend (Cloudflare Pages):**
+Roll back via the Cloudflare Pages dashboard > Deployments > select previous deployment > "Rollback to this deploy".

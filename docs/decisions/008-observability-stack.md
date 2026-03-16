@@ -9,7 +9,7 @@ tags:
   - structlog
   - logging
 supersedes: null
-superseded_by: null
+superseded_by: 18
 related: [10]
 ---
 
@@ -17,7 +17,7 @@ related: [10]
 
 ## Status
 
-Accepted
+Superseded by [ADR-018](018-gcp-native-observability.md)
 
 ## Context
 

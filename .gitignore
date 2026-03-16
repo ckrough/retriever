@@ -10,8 +10,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
+# Python venv lib (not frontend/src/lib)
+/lib/
+backend/lib/
 parts/
 sdist/
 var/
@@ -37,14 +39,18 @@ htmlcov/
 
 # IDE
 .idea/
-.vscode/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 *.swp
 *.swo
 *~
 
 # Environment
 .env
-.env.local
+.env.*
+.env-*
+!.env.example
 
 # OS
 .DS_Store
@@ -60,5 +66,19 @@ data/
 # Knowledge Documents (root folder only)
 /documents/
 
+# Frontend
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/.wrangler/
+frontend/.env
+frontend/test-results/
+frontend/playwright-report/
+
+# npm local cache (used during builds to avoid writing outside project)
+tmp/
+
 # Dolt database files (added by bd init)
 .dolt/
+
+# Beads issue tracker (redirect to shared database)
+.beads/

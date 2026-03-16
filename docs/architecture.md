@@ -7,49 +7,47 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      DOCUMENT PIPELINE                          │
-│  [Word/MD/Text] → [Loaders] → [Chunker] → [Embeddings] → [DB]   │
+│  [Word/MD/Text] → [Loaders] → [Chunker] → [Embeddings] → [DB] │
 └─────────────────────────────────────────────────────────────────┘
                                                         ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                        QUERY FLOW                               │
-│  [User Question] → [Embed] → [Retrieve] → [Claude] → [Answer]   │
+│  [User Question] → [Embed] → [Retrieve] → [Claude] → [Answer]  │
 └─────────────────────────────────────────────────────────────────┘
                               ↑
 ┌─────────────────────────────────────────────────────────────────┐
 │                      WEB APPLICATION                            │
-│  [FastAPI Backend] ←→ [Simple Frontend] ←→ [Volunteer Browser]  │
+│  [SvelteKit Frontend] ←→ [FastAPI Backend] ←→ [Supabase Auth]  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Architecture Style: Modular Monolith
+## Architecture Style: Cloud-Native Microservices
 
-Single deployable unit with clean module boundaries. See [ADR-003](decisions/003-system-architecture.md).
+Separate backend and frontend deployables with managed infrastructure. See [ADR-003](decisions/003-system-architecture.md).
 
 **Why this approach:**
-- Single deployment, low operational complexity
-- Clear module boundaries enable future extraction to services
-- API-first: frontend is just another API consumer
+- Independent deployment of backend (Cloud Run) and frontend (Cloudflare Pages)
+- Managed database (Supabase) eliminates operational burden
+- API-first: frontend is a typed API consumer via `RetrieverApi` client
 - Dependencies point inward (business logic doesn't know about FastAPI)
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                      Retriever (Monolith)                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │   Auth       │  │    RAG       │  │   Documents  │      │
-│  │   Module     │  │   Module     │  │   Module     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│                           ↓                                │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Shared Infrastructure                  │   │
-│  │        (config, LLM providers, vector DB)           │   │
-│  └─────────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────┘
-                            │
-                     REST/JSON API (v1)
-                            │
-              ┌─────────────┴─────────────┐
-              ↓                           ↓
-        Web Frontend              Future Integrations
+┌──────────────────────────────┐    ┌──────────────────────────┐
+│     SvelteKit Frontend       │    │   Supabase               │
+│   (Cloudflare Pages)         │    │   (Managed Postgres +    │
+│                              │───▶│    pgvector + Auth)       │
+│  Auth state, Chat UI,        │    │                          │
+│  Admin (doc upload/manage)   │    └──────────────────────────┘
+└──────────────┬───────────────┘                 ▲
+               │ REST/JSON API (v1)              │
+               ▼                                 │
+┌──────────────────────────────┐                 │
+│      FastAPI Backend         │─────────────────┘
+│      (Cloud Run)             │
+│                              │───▶ Cloudflare AI Gateway
+│  Auth, RAG, Documents,       │       → OpenRouter (LLM)
+│  Messages, Observability     │       → OpenAI (Embeddings)
+└──────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -58,126 +56,116 @@ Single deployable unit with clean module boundaries. See [ADR-003](decisions/003
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| Framework | FastAPI | Async, modern, good docs |
-| LLM | OpenRouter (Claude via OpenAI-compatible API) | Multi-model access, simple pricing |
+| Framework | FastAPI + Pydantic 2.x | Async, modern, auto-generated OpenAPI |
+| ORM | SQLAlchemy 2.0 async + asyncpg | Async Postgres, Alembic migrations |
+| LLM | OpenRouter via Cloudflare AI Gateway | Multi-model, OpenAI-compatible API |
 | LLM Abstraction | Protocol-based provider interface | Swap providers without code changes |
-| Embeddings | OpenAI `text-embedding-3-small` | Cost-effective, high quality |
-| Vector DB | Chroma | Simple, local-first, easy to start |
-| Doc Loaders | `python-docx` + built-in | Lightweight loaders for Word, Markdown, text |
-| Auth | `python-jose` + `passlib` | JWT tokens, bcrypt passwords |
+| Embeddings | OpenAI `text-embedding-3-small` via AI Gateway | Cost-effective, high quality |
+| Vector DB | Supabase Postgres + pgvector | HNSW cosine + GIN full-text, managed |
+| Auth | Supabase Auth / JWKS (RS256 JWT) via PyJWT | Server-verified tokens, RLS |
+| Observability | structlog (JSON) + OpenTelemetry + Langfuse | GCP Cloud Trace / Jaeger / console |
+| Resilience | tenacity + aiobreaker | Retries, circuit breakers |
 
-### Frontend (MVP)
+### Frontend (SvelteKit)
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| Approach | Server-rendered + HTMX | Simple, fast MVP, no JS build step |
-| Styling | Tailwind CSS (CDN) | Quick, good defaults |
-| Templates | Jinja2 | Built into FastAPI |
+| Framework | SvelteKit + Svelte 5 runes | SSR, file-based routing, modern reactivity |
+| UI Library | Skeleton UI v4 | Tailwind-based, accessible components |
+| Styling | Tailwind CSS v4 | Utility-first, cerberus theme |
+| Auth | Supabase SSR (`@supabase/ssr`) | Server-verified auth, cookie-based sessions |
+| API Client | Typed `RetrieverApi` class | Mirrors backend Pydantic schemas |
 
 ### Infrastructure
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| Hosting | Railway or Render | Simple deployment, free tiers |
-| Vector DB | Chroma (persistent) | Embedded, no separate service |
-| Database | SQLite | Simple, file-based, perfect for MVP |
-| Document Storage | Git repository (`documents/`) | Version controlled, easy updates |
-| Secrets | Environment variables | Standard practice |
-| Observability | Sentry + structlog | Simple error tracking, structured logging |
+| Backend Hosting | Google Cloud Run | Serverless, auto-scaling, `gcloud run deploy --source` |
+| Frontend Hosting | Cloudflare Pages | Global CDN, SvelteKit adapter |
+| Database | Supabase Postgres + pgvector | Managed, includes Auth + RLS |
+| LLM Gateway | Cloudflare AI Gateway | Rate limiting, caching, logging |
+| Observability | GCP Cloud Trace + Langfuse | Distributed tracing + LLM observability |
+| Secrets | Environment variables + GCP Secret Manager | Standard practice |
+| CI/CD | GitHub Actions | Path-filtered backend/frontend jobs |
 
 ## Project Structure
 
+### Monorepo Layout
+
 ```
 retriever/
-├── src/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI app entry point
-│   ├── config.py               # Settings via pydantic-settings
-│   │
-│   ├── modules/                # Business modules (each self-contained)
-│   │   ├── auth/               # Authentication
-│   │   │   ├── __init__.py
-│   │   │   ├── routes.py       # POST /api/v1/auth/login, etc.
-│   │   │   ├── services.py     # Business logic
-│   │   │   ├── repos.py        # User data access
-│   │   │   ├── schemas.py      # Pydantic request/response
-│   │   │   └── models.py       # User domain model
-│   │   │
-│   │   ├── rag/                # RAG/Q&A Module
-│   │   │   ├── __init__.py
-│   │   │   ├── routes.py       # POST /api/v1/rag/ask
-│   │   │   ├── services.py     # RAG orchestration
-│   │   │   ├── retriever.py    # Vector search logic
-│   │   │   ├── generator.py    # Answer generation
-│   │   │   └── schemas.py      # Question/Answer schemas
-│   │   │
-│   │   └── documents/          # Document Management
-│   │       ├── __init__.py
-│   │       ├── routes.py       # GET /api/v1/documents
-│   │       ├── services.py     # Indexing orchestration
-│   │       ├── loaders.py      # File loaders
-│   │       ├── chunker.py      # Text chunking
-│   │       └── schemas.py      # Document schemas
-│   │
-│   ├── infrastructure/         # Shared technical concerns
-│   │   ├── llm/                # LLM providers
-│   │   │   ├── base.py         # LLMProvider Protocol
-│   │   │   ├── openrouter.py   # OpenRouter implementation
-│   │   │   ├── resilient.py    # Fallback chain
-│   │   │   └── factory.py      # Provider factory
-│   │   ├── vectordb/           # Vector DB
-│   │   │   ├── base.py         # VectorStore Protocol
-│   │   │   └── chroma.py       # Chroma implementation
-│   │   ├── cache/              # Semantic caching
-│   │   │   └── semantic_cache.py
-│   │   ├── safety/             # Content safety
-│   │   │   ├── moderation.py   # OpenAI Moderation API
-│   │   │   ├── guardrails.py   # Input/output validation
-│   │   │   ├── hallucination.py
-│   │   │   └── prompt_injection.py
-│   │   ├── observability/      # Logging and errors
-│   │   │   ├── logging.py      # structlog setup
-│   │   │   └── sentry.py       # Sentry initialization
-│   │   ├── costs/              # Cost tracking
-│   │   │   ├── tracker.py
-│   │   │   └── alerts.py
-│   │   ├── embeddings.py
-│   │   ├── database.py
-│   │   └── rate_limit.py
-│   │
-│   ├── api/                    # API layer
-│   │   ├── router.py           # Mount module routes
-│   │   ├── middleware.py       # Auth, rate limiting
-│   │   └── errors.py           # Error responses
-│   │
-│   └── web/                    # Server-rendered frontend
-│       ├── routes.py           # HTML pages
-│       └── templates/
-│
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── e2e/
-│   ├── rag_evaluation/         # RAG quality tests
-│   │   ├── golden_dataset.py
-│   │   └── test_rag_quality.py
-│   ├── modules/
-│   └── infrastructure/
-│
-├── docs/                       # You are here
-├── scripts/
-├── documents/                  # Source documents to index
-├── data/                       # Chroma + SQLite storage
-├── pyproject.toml
-├── .env.example
-└── README.md
+├── .github/workflows/      # CI/CD: ci.yml, claude.yml, release.yml
+├── backend/                 # Python backend
+│   ├── src/retriever/       # Application source
+│   ├── tests/               # Backend tests
+│   └── pyproject.toml       # uv-managed dependencies
+├── frontend/                # SvelteKit frontend
+│   ├── src/                 # SvelteKit source
+│   └── package.json
+└── docs/                    # Architecture docs and ADRs
+```
+
+### Backend Structure (`backend/src/retriever/`)
+
+```
+retriever/
+├── config.py               # pydantic-settings; ai_gateway_base_url computed field
+├── main.py                 # FastAPI app, /health (DB+pgvector checks), CORS
+├── models/                 # SQLAlchemy 2.0 async: User, Message, Document
+├── infrastructure/
+│   ├── cache/              # PgSemanticCache (pgvector cosine similarity)
+│   ├── database/           # async session factory (asyncpg)
+│   ├── embeddings/         # OpenAIEmbeddingProvider (via AI Gateway)
+│   ├── llm/                # OpenRouterProvider + FallbackLLMProvider (via AI Gateway)
+│   ├── observability/      # structlog JSON + OTel (GCP/OTLP/console) + Langfuse + RequestIdMiddleware
+│   └── vectordb/           # PgVectorStore (HNSW cosine + GIN full-text)
+└── modules/
+    ├── auth/               # JwksValidator, require_auth, require_admin
+    ├── documents/          # upload/list/delete with /api/v1/documents endpoints
+    ├── messages/           # conversation history with /api/v1/history endpoints
+    └── rag/                # chunker, loader, prompts, hybrid retriever, RAG service, /api/v1/ask
+```
+
+### Frontend Structure (`frontend/src/`)
+
+```
+src/
+├── hooks.server.ts                 # Supabase SSR auth + route guards
+├── app.d.ts                        # App.Locals, App.PageData type augmentation
+├── app.css                         # Tailwind v4 + Skeleton cerberus theme
+├── lib/
+│   ├── supabase.ts                 # createBrowserClient factory
+│   ├── server/supabase.ts          # createSupabaseServerClient factory
+│   ├── api/
+│   │   ├── types.ts                # TypeScript interfaces (mirrors backend Pydantic)
+│   │   └── client.ts               # RetrieverApi class (typed HTTP client)
+│   └── components/
+│       ├── ChatMessage.svelte      # Message bubble (user/assistant)
+│       ├── ChatInput.svelte        # Textarea + send (Enter/Shift+Enter)
+│       ├── ConfidenceBadge.svelte  # RAG confidence pill (high/medium/low)
+│       ├── SourceCitation.svelte   # Expandable source chunks
+│       ├── ClearHistoryButton.svelte # Clear with confirmation
+│       ├── DocumentList.svelte     # Table (desktop) / cards (mobile)
+│       ├── DocumentUpload.svelte   # File input + validation
+│       └── ErrorAlert.svelte       # Reusable error display
+├── routes/
+│   ├── +layout.svelte              # AppBar, nav, auth state listener
+│   ├── +layout.server.ts           # Pass session/user/cookies to client
+│   ├── +layout.ts                  # Browser/server Supabase client
+│   ├── +page.svelte                # Landing (redirect to /chat if authed)
+│   ├── +error.svelte               # Global error page
+│   ├── login/                      # Email+password form action
+│   ├── logout/                     # POST → signOut + redirect
+│   ├── chat/                       # RAG Q&A + history + citations
+│   └── admin/                      # Document upload/list/delete (admin only)
+└── tests/e2e/                      # Playwright tests
 ```
 
 ## Key Design Patterns
 
 ### LLM Provider Abstraction
 
-Protocol-based interface for swappable LLM providers:
+Protocol-based interface for swappable LLM providers. Providers receive `base_url` at construction time from `settings.ai_gateway_base_url`:
 
 ```python
 class LLMProvider(Protocol):
@@ -189,25 +177,44 @@ class LLMProvider(Protocol):
     ) -> str: ...
 ```
 
+Construction pattern:
+```python
+provider = OpenRouterProvider(
+    api_key=settings.openrouter_api_key,
+    base_url=settings.ai_gateway_base_url,  # routes via Cloudflare if configured
+)
+```
+
 See [ADR-002](decisions/002-llm-provider-strategy.md).
 
 ### Module Structure
 
-Each module in `src/modules/` is self-contained:
+Each module in `backend/src/retriever/modules/` is self-contained:
 
 ```
 module_name/
 ├── __init__.py
 ├── routes.py       # FastAPI routes
 ├── services.py     # Business logic
-├── schemas.py      # Pydantic models
-├── models.py       # Domain models
-└── repos.py        # Data access (if needed)
+├── schemas.py      # Pydantic models (request/response)
+└── repos.py        # Data access via SQLAlchemy async session
 ```
+
+### Infrastructure Patterns
+
+| Pattern | Implementation |
+|---------|---------------|
+| Database | Async session factory with asyncpg, Alembic migrations |
+| Embeddings | OpenAI-compatible provider routed through AI Gateway |
+| LLM Gateway | `ai_gateway_base_url` computed field: Cloudflare if configured, OpenRouter fallback |
+| Observability | Auto-selected OTel exporter: GCP Cloud Trace → OTLP/gRPC (Jaeger) → Console → no-op |
+| Vector DB | PgVectorStore with HNSW cosine index + GIN full-text for hybrid retrieval |
+| Semantic Cache | PgSemanticCache using pgvector cosine similarity for query deduplication |
+| Auth | RS256 JWKS validation via PyJWT; admin from `app_metadata.is_admin` |
 
 ### Configuration
 
-Use `pydantic-settings` for all configuration. Environment variables override defaults.
+Use `pydantic-settings` for all configuration. Environment variables override defaults. Computed fields derive values from primitives (e.g., `ai_gateway_base_url` from `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_GATEWAY_ID`).
 
 ## Related Documents
 

@@ -45,61 +45,63 @@ chore: update dependencies
 
 ### Required Checks (CI enforced)
 
+All backend commands run from the `backend/` directory using `uv run`:
+
 ```bash
 # Linting
-ruff check src/ tests/ --fix
-ruff format src/ tests/
+uv run ruff check src/ tests/ --fix
+uv run ruff format src/ tests/
 
-# Type checking (strict mode)
-mypy src/ --strict
+# Type checking (strict mode — use python -m mypy, NOT uv run mypy)
+uv run python -m mypy src/ --strict
 
 # Tests with coverage
-pytest --cov=src --cov-report=term-missing --cov-fail-under=80
+uv run python -m pytest tests/ --cov=src/retriever --cov-report=term-missing --cov-fail-under=80
 
 # Security audit
-pip-audit
+uv run pip-audit
 ```
 
 ### All Checks (run before PR)
 
-```bash
-ruff check src/ tests/ --fix && \
-ruff format src/ tests/ && \
-mypy src/ --strict && \
-pytest --cov=src --cov-fail-under=80
-```
-
-## Docker Testing
-
-Test the production Docker build locally before deploying:
+Run from `backend/`:
 
 ```bash
-# Build production image
-docker build -t retriever:latest .
-
-# Run with docker-compose
-docker-compose up -d
-
-# Verify health
-curl http://localhost:8000/health
-
-# Run functional tests against Docker container
-docker-compose exec retriever uv run pytest
-
-# View logs
-docker-compose logs -f retriever
-
-# Stop
-docker-compose down
+uv run ruff check src/ tests/ --fix && \
+uv run ruff format src/ tests/ && \
+uv run python -m mypy src/ --strict && \
+uv run python -m pytest tests/ --cov=src/retriever --cov-fail-under=80
 ```
 
-**When to test with Docker:**
-- Before deploying to production
-- To verify the production build works
-- To test volume persistence
-- To validate environment variable configuration
+## Local Development
 
-**Development workflow:** Use `uv run uvicorn --reload` on the host for faster iteration. Docker is for production testing only.
+The dev workflow runs infrastructure in Docker + Supabase CLI, with backend and frontend running natively for fast live reload.
+
+```bash
+# 1. Start Supabase (auth, realtime, storage)
+supabase start
+
+# 2. Start infrastructure (pgvector postgres + jaeger)
+docker compose up -d
+
+# 3. Backend (separate terminal)
+cd backend && uv sync --dev
+uv run alembic upgrade head          # first time / after migrations
+uv run uvicorn retriever.main:app --reload --port 8000
+
+# 4. Frontend (separate terminal)
+cd frontend && npm install
+npm run dev                          # live reload on :5173
+
+# 5. Stop everything
+docker compose down && supabase stop
+```
+
+**Why this approach:**
+- Backend and frontend run natively for fast hot-reload
+- Docker Compose provides pgvector Postgres and Jaeger for local tracing
+- Supabase CLI provides local Auth, Realtime, and Storage
+- No container rebuilds during development
 
 ## Type Hints
 

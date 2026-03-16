@@ -10,7 +10,7 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 | [Increments](increments.md) | Implementation roadmap (13 increments) |
 | [Development Standards](development-standards.md) | Code quality, Git workflow, PR process |
 | [ADRs](decisions/) | Architecture Decision Records |
-| [Deployment Guide](guides/deployment.md) | How to deploy to Railway/Render |
+| [Deployment Guide](guides/deployment.md) | How to deploy to Cloud Run + Cloudflare Pages |
 | [Adding Documents](guides/adding-documents.md) | Managing policy documents |
 
 ---
@@ -23,7 +23,7 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 - **Interface**: Web application (mobile-friendly)
 - **LLM**: Anthropic Claude (via OpenRouter)
 - **Auth**: Simple login (future: integrate with volunteer management system)
-- **Deployment**: Cloud services (Railway or Render)
+- **Deployment**: Cloud Run (backend) + Cloudflare Pages (frontend)
 
 ---
 
@@ -49,8 +49,8 @@ AI-powered Q&A system for shelter volunteers, using RAG to answer questions from
 ### Architecture
 - **Style**: Modular monolith with clean architecture
 - **LLM**: OpenRouter with Protocol-based abstraction for swapping
-- **Vector DB**: Chroma (embedded, persistent)
-- **Database**: SQLite (users, audit logs)
+- **Vector DB**: Supabase Postgres + pgvector (HNSW cosine + GIN full-text)
+- **Database**: Supabase managed Postgres (users, messages, documents)
 
 ### Safety & Resilience
 - **Content moderation**: OpenAI Moderation API
@@ -68,48 +68,51 @@ See [ADRs](decisions/) for detailed rationale on each decision.
 [project]
 dependencies = [
     # Web framework
-    "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "jinja2>=3.1.3",
-    "python-multipart>=0.0.9",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.18",
 
     # LLM & Embeddings
-    "openai>=1.12.0",
-    "httpx>=0.26.0",
+    "openai>=1.60",
 
-    # Vector DB & RAG
-    "chromadb>=0.4.22",
-    "cohere>=5.0.0",
-    "rank-bm25>=0.2.2",
+    # Database & Vector DB
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "pgvector>=0.3",
 
-    # Document processing
-    "python-docx>=1.1.0",
-
-    # Auth
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
+    # Auth (Supabase JWKS / RS256 JWT)
+    "pyjwt[crypto]>=2.10",
 
     # Validation & Config
-    "pydantic>=2.6.0",
-    "pydantic-settings>=2.1.0",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.6",
 
     # Observability
-    "sentry-sdk[fastapi]>=1.40.0",
-    "structlog>=24.1.0",
+    "structlog>=24.4",
+    "opentelemetry-api>=1.28",
+    "opentelemetry-sdk>=1.28",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-exporter-gcp-trace>=1.8",
+    "opentelemetry-resourcedetector-gcp>=1.8",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.28",
+    "langfuse>=3.0",
 
     # Resilience
-    "tenacity>=8.2.0",
-    "aiobreaker>=1.2.0",
-    "slowapi>=0.1.9",
+    "tenacity>=9.0",
+    "aiobreaker>=1.2",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "ruff>=0.2.0",
-    "mypy>=1.8.0",
+    "httpx>=0.28.1",
+    "mypy>=1.19.1",
+    "pip-audit>=2.10.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "respx>=0.22.0",
+    "ruff>=0.8",
 ]
 ```
 
@@ -118,9 +121,9 @@ dev = [
 ## Operational Concerns
 
 ### Observability
-- **Error tracking**: Sentry (free tier)
+- **Distributed tracing**: GCP Cloud Trace (production) / Jaeger (local dev) via OpenTelemetry
 - **Logging**: structlog (JSON, request IDs)
-- **Metrics**: Basic timing in logs, Sentry performance
+- **LLM observability**: Langfuse (when credentials configured)
 
 ### Cost Tracking
 - Per-request cost logged in audit table
@@ -138,7 +141,7 @@ GET /health/ready    → Dependencies OK
 |------------|---------|-----------------|
 | OpenRouter | 30s | Open after 5 failures |
 | OpenAI Embeddings | 10s | Open after 5 failures |
-| Chroma | 5s | None (local) |
+| Supabase Postgres | 5s | None (managed) |
 
 ---
 
@@ -158,8 +161,8 @@ Trigger production hardening when:
 ### Deferred Operational Items
 
 **Data Durability**
-- [ ] Automated SQLite backup to cloud storage (daily)
-- [ ] Chroma vector DB backup after each reindex
+- [ ] Verify Supabase automated backup schedule and retention
+- [ ] Point-in-time recovery testing
 - [ ] Backup verification tests
 - [ ] Define RPO/RTO targets (suggested: RPO 24h, RTO 1h)
 
@@ -169,10 +172,10 @@ Trigger production hardening when:
 - [ ] Incident response procedures
 
 **Advanced Observability**
-- [ ] Distributed tracing (OpenTelemetry)
-- [ ] Rich metrics dashboard
+- [ ] Rich metrics dashboard (GCP Cloud Monitoring)
 - [ ] User journey tracking
 - [ ] Anomaly detection
+- [ ] Langfuse prompt version management
 
 **LLMOps Maturity**
 - [ ] A/B testing infrastructure for models and prompts

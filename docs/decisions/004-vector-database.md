@@ -1,22 +1,24 @@
 ---
 adr: 4
 title: Vector Database
-status: accepted
+status: superseded
 date: 2024-12-18
 tags:
   - rag
   - vector-db
   - chroma
 supersedes: null
-superseded_by: null
+superseded_by: "pgvector migration (stack migration Phase 3)"
 related: [5, 16]
 ---
 
 # 004: Vector Database
 
+> **Superseded:** Vector DB migrated from Chroma to Supabase Postgres + pgvector. See `backend/src/retriever/infrastructure/vectordb/`.
+
 ## Status
 
-Accepted
+Superseded
 
 ## Context
 

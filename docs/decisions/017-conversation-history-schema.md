@@ -55,7 +55,7 @@ Key decisions:
 
 3. **Message count limit (20)**: Conversation context is limited by message count rather than token estimation. Simpler to implement and sufficient for MVP.
 
-4. **Extend RAG module**: MessageStore lives in `src/modules/rag/` since conversation history is a RAG concern, not a separate domain.
+4. **Messages module**: MessageStore lives in `backend/src/retriever/modules/messages/` as a dedicated module for conversation history management.
 
 ## Alternatives Considered
 
