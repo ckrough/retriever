@@ -53,7 +53,7 @@ cp .env.example .env
 supabase start                    # Auth + Supabase services
 docker compose up -d              # pgvector postgres + jaeger
 
-cd backend && uv sync --extra dev
+cd backend && uv sync --dev
 uv run alembic upgrade head
 uv run uvicorn retriever.main:app --reload --port 8000
 

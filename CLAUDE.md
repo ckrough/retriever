@@ -24,9 +24,9 @@ bd create "Add user authentication" -l apprtvr -l docs
 bd create "Fix chat timeout bug" -l apprtvr -l tooling
 ```
 
-**Architecture:** Modular monolith (old) → Cloud-native microservices (new migration in progress)
+**Architecture:** Cloud-native microservices
 
-### New Stack (active development — `backend/`, `frontend/`)
+### Stack (`backend/`, `frontend/`)
 - **Backend:** Python 3.13+, FastAPI, Pydantic 2.x, SQLAlchemy 2.0 async
 - **LLM:** OpenRouter via Cloudflare AI Gateway (OpenAI-compatible API)
 - **Vector DB:** Supabase Postgres + pgvector (HNSW cosine + GIN full-text)
@@ -35,20 +35,13 @@ bd create "Fix chat timeout bug" -l apprtvr -l tooling
 - **Observability:** structlog (JSON) + OpenTelemetry (GCP Cloud Trace / Jaeger) + Langfuse
 - **Deploy:** Cloud Run (backend), Cloudflare Pages (frontend)
 
-### Old Stack (frozen — `src/`, do not modify until Phase 10 cleanup)
-- Python 3.13+, FastAPI, Pydantic 2.x
-- LLM: OpenRouter (Claude via OpenAI-compatible API)
-- Vector DB: Chroma (embedded)
-- Frontend: Jinja2 + HTMX + Tailwind CSS
-- Database: SQLite
-
 ## Commands
 
-### New Backend (run from `backend/`)
+### Backend (run from `backend/`)
 
 ```bash
 # Install dependencies (dev)
-uv sync --extra dev
+uv sync --dev
 
 # Run development server
 uv run uvicorn retriever.main:app --reload --port 8000
@@ -70,7 +63,7 @@ uv run pip-audit
 uv run ruff check src/ tests/ --fix && uv run ruff format src/ tests/ && uv run python -m mypy src/ --strict && uv run python -m pytest tests/ --cov=src/retriever --cov-fail-under=80
 ```
 
-### New Frontend (run from `frontend/`)
+### Frontend (run from `frontend/`)
 
 ```bash
 # Install dependencies
@@ -89,32 +82,6 @@ npm run build
 npm run test:e2e
 ```
 
-### Old Monolith (legacy — run from repo root)
-
-```bash
-# Install dependencies (dev)
-pip install -e '.[dev]'
-
-# Run development server
-uvicorn src.main:app --reload --port 8000
-
-# Linting and formatting
-ruff check src/ tests/ --fix
-ruff format src/ tests/
-
-# Type checking (strict mode required)
-mypy src/ --strict
-
-# Run tests with coverage (80% minimum)
-pytest --cov=src --cov-report=term-missing --cov-fail-under=80
-
-# Security audit
-pip-audit
-
-# All quality checks (run before PR)
-ruff check src/ tests/ --fix && ruff format src/ tests/ && mypy src/ --strict && pytest --cov=src --cov-fail-under=80
-```
-
 ## Local Development
 
 The dev workflow runs infrastructure in Docker + Supabase CLI, with backend and frontend running natively for fast live reload.
@@ -127,7 +94,7 @@ supabase start
 docker compose up -d
 
 # 3. Backend (separate terminal)
-cd backend && uv sync --extra dev
+cd backend && uv sync --dev
 uv run alembic upgrade head          # first time / after migrations
 uv run uvicorn retriever.main:app --reload --port 8000
 
@@ -159,7 +126,6 @@ CI uses `dorny/paths-filter` — only changed stacks run:
 |-------|-------------|------|
 | Backend | `backend/**` | lint, typecheck, test |
 | Frontend | `frontend/**` | check, build, e2e |
-| Legacy | `src/**`, `tests/**` | lint, typecheck, test |
 
 The `all-checks` gate job requires all triggered jobs to pass (skipped jobs are OK).
 
@@ -170,18 +136,17 @@ The `all-checks` gate job requires all triggered jobs to pass (skipped jobs are 
 ```
 retriever/
 ├── .github/workflows/      # CI/CD: ci.yml, claude.yml, release.yml
-├── backend/                # New Python backend (active development)
+├── backend/                # Python backend
 │   ├── src/retriever/      # Application source
 │   ├── tests/              # Backend tests
 │   └── pyproject.toml      # uv-managed dependencies
-├── frontend/               # New SvelteKit frontend (active development)
+├── frontend/               # SvelteKit frontend
 │   ├── src/                # SvelteKit source
 │   └── package.json
-├── src/                    # OLD monolith (frozen — do not touch until Phase 10)
 └── docs/                   # Architecture docs and ADRs
 ```
 
-### New Frontend Structure (`frontend/src/`)
+### Frontend Structure (`frontend/src/`)
 
 ```
 src/
@@ -216,7 +181,7 @@ src/
 └── tests/e2e/                      # Playwright tests
 ```
 
-### New Backend Structure (`backend/src/retriever/`)
+### Backend Structure (`backend/src/retriever/`)
 
 ```
 retriever/
@@ -236,7 +201,7 @@ retriever/
 
 ## Backend Gotchas
 
-These are non-obvious issues discovered during the stack migration:
+These are non-obvious issues discovered during development:
 
 **mypy invocation:** Always use `uv run python -m mypy`, not `uv run mypy`. The `mypy` binary is not on PATH in the uv venv; `python -m mypy` is the reliable path.
 
@@ -249,13 +214,11 @@ follow_imports = "skip"
 
 **tenacity must NOT share the aiobreaker override:** `tenacity` ships `py.typed`. If you add it to the same override as aiobreaker, mypy silently drops type inference for `@retry` decorators, causing false-positive errors.
 
-**Duplicate dependency sections in pyproject.toml:** There are two dev dependency sections — `[project.optional-dependencies].dev` (pip-compatible) and `[dependency-groups].dev` (uv-native). These are intentionally kept until Phase 10 consolidation. Do not remove either one now.
-
 **AI Gateway routing:** `settings.ai_gateway_base_url` is a computed field. If `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_GATEWAY_ID` are set, it routes through Cloudflare AI Gateway; otherwise it falls back to OpenRouter directly. All LLM and embedding providers must use this field, not hardcoded URLs.
 
-**File upload decision (Phase 7):** Ephemeral FS (process-and-discard) vs Supabase Storage (persist raw file) is still open. Ask user before implementing `/documents/upload`.
+**File upload:** Uses ephemeral FS (process-and-discard) — chunks and embeds content, stores in pgvector, discards raw file. If Supabase Storage is needed later, only the upload handler changes.
 
-**OTel exporter selection (Phase 6):** `tracing.py` auto-selects exporter: GCP Cloud Trace (`gcp_project_id` set) → OTLP/gRPC (`OTEL_EXPORTER_OTLP_ENDPOINT` set, for Jaeger) → Console (debug) → no-op. GCP exporter gracefully falls through if credentials are unavailable (local dev without ADC).
+**OTel exporter selection:** `tracing.py` auto-selects exporter: GCP Cloud Trace (`gcp_project_id` set) → OTLP/gRPC (`OTEL_EXPORTER_OTLP_ENDPOINT` set, for Jaeger) → Console (debug) → no-op. GCP exporter gracefully falls through if credentials are unavailable (local dev without ADC).
 
 **Langfuse @observe() is a no-op without credentials:** The decorator is always imported but only sends traces when `langfuse_secret_key`, `langfuse_public_key`, and `langfuse_host` are all set. Safe to ignore in local dev.
 
@@ -403,7 +366,7 @@ provider = OpenRouterProvider(
 )
 ```
 
-### Module Structure (new backend)
+### Module Structure (backend)
 Each module in `backend/src/retriever/modules/` is self-contained:
 ```
 module_name/

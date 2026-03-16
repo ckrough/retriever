@@ -49,7 +49,9 @@ def get_embedding_provider() -> OpenAIEmbeddingProvider:
     use_gateway = bool(
         settings.cloudflare_account_id and settings.cloudflare_gateway_id
     )
-    base_url = settings.ai_gateway_base_url if use_gateway else "https://api.openai.com/v1"
+    base_url = (
+        settings.ai_gateway_base_url if use_gateway else "https://api.openai.com/v1"
+    )
     model = settings.default_embedding_model
     if not use_gateway and model.startswith("openai/"):
         model = model.removeprefix("openai/")

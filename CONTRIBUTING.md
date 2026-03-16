@@ -17,7 +17,7 @@ docker compose up -d
 
 # Backend
 cd backend
-uv sync --extra dev
+uv sync --dev
 uv run alembic upgrade head
 uv run uvicorn retriever.main:app --reload --port 8000
 # → http://localhost:8000/health
@@ -189,7 +189,6 @@ retriever/
 │   └── tests/         # Backend tests
 ├── frontend/          # SvelteKit + Svelte 5 + Skeleton UI (active development)
 │   └── src/           # SvelteKit source
-├── src/               # OLD monolith (frozen — do not modify)
 └── docs/              # Architecture docs and ADRs
 ```
 
