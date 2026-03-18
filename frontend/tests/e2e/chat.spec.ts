@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Chat page (unauthenticated)', () => {
 	test('redirects to login', async ({ page }) => {
-		await page.goto('/chat');
+		await page.goto('/app/retriever/chat');
 		await expect(page).toHaveURL(/\/login/);
 	});
 });

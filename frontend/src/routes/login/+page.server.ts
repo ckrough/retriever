@@ -17,6 +17,6 @@ export const actions: Actions = {
 			return fail(400, { error: error.message, email });
 		}
 
-		redirect(303, '/chat');
+		redirect(303, '/app/retriever/chat');
 	}
 };

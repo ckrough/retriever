@@ -6,7 +6,7 @@
 
 	onMount(() => {
 		if (data.session) {
-			goto('/chat', { replaceState: true });
+			goto('/app/retriever/chat', { replaceState: true });
 		}
 	});
 </script>

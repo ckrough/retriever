@@ -29,7 +29,7 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
 	});
 };
 
-const protectedPaths = ['/chat', '/admin'];
+const protectedPaths = ['/app'];
 
 const authGuard: Handle = async ({ event, resolve }) => {
 	const { session, user } = await event.locals.safeGetSession();
@@ -43,7 +43,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	}
 
 	if (session && event.url.pathname === '/login') {
-		redirect(303, '/chat');
+		redirect(303, '/app/retriever/chat');
 	}
 
 	return resolve(event);
