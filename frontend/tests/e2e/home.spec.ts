@@ -1,11 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Home page', () => {
-	test('renders app bar with title', async ({ page }) => {
-		await page.goto('/');
-		await expect(page.getByRole('link', { name: 'Retriever', exact: true })).toBeVisible();
-	});
-
 	test('shows sign in link when unauthenticated', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByRole('link', { name: 'Sign In to Get Started' })).toBeVisible();

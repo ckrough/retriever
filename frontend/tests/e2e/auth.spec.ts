@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Authentication', () => {
-	test('unauthenticated user is redirected from /chat to /login', async ({ page }) => {
-		await page.goto('/chat');
+	test('unauthenticated user is redirected from /app/retriever/chat to /login', async ({ page }) => {
+		await page.goto('/app/retriever/chat');
 		await expect(page).toHaveURL(/\/login/);
 	});
 
-	test('unauthenticated user is redirected from /admin to /login', async ({ page }) => {
-		await page.goto('/admin');
+	test('unauthenticated user is redirected from /app/retriever/admin to /login', async ({ page }) => {
+		await page.goto('/app/retriever/admin');
 		await expect(page).toHaveURL(/\/login/);
 	});
 
