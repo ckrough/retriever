@@ -1,6 +1,6 @@
 import type { Component } from 'svelte';
 
-export type PortalTheme = 'daylight' | 'foundry' | 'neutral';
+export type PortalTheme = 'light' | 'dark' | 'neutral';
 export type ModuleStatus = 'active' | 'disabled' | 'locked';
 
 export interface ModuleNavItem {

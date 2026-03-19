@@ -77,7 +77,7 @@
 		<button
 			type="button"
 			data-close
-			class="absolute right-2 top-2 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg transition-colors hover:bg-[var(--portal-hover-bg)]"
+			class="absolute right-2 top-2 flex min-h-[48px] min-w-[48px] items-center justify-center rounded-lg transition-colors hover:bg-[var(--portal-hover-bg)]"
 			onclick={onclose}
 			aria-label="Close"
 		>
@@ -114,7 +114,7 @@
 			<!-- CTA -->
 			<button
 				type="button"
-				class="mt-6 min-h-[44px] w-full rounded-lg bg-[var(--color-primary-500)] px-4 font-medium text-white transition-colors hover:bg-[var(--color-primary-600)]"
+				class="mt-6 min-h-[48px] w-full rounded-lg bg-[var(--portal-cta-bg,var(--color-primary-500))] px-4 font-medium text-white transition-colors hover:brightness-90"
 			>
 				Upgrade to Access {module.name}
 			</button>
@@ -122,7 +122,7 @@
 			<!-- Ghost dismiss -->
 			<button
 				type="button"
-				class="mt-2 min-h-[44px] w-full rounded-lg px-4 text-sm opacity-60 transition-colors hover:bg-[var(--portal-hover-bg)] hover:opacity-100"
+				class="mt-2 min-h-[48px] w-full rounded-lg px-4 text-sm opacity-60 transition-colors hover:bg-[var(--portal-hover-bg)] hover:opacity-100"
 				onclick={onclose}
 			>
 				Maybe later

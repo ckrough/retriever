@@ -20,7 +20,7 @@
 	<div class="flex items-center gap-3">
 		<button
 			type="button"
-			class="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg transition-colors hover:bg-[var(--portal-hover-bg)] md:hidden"
+			class="flex min-h-[48px] min-w-[48px] items-center justify-center rounded-lg transition-colors hover:bg-[var(--portal-hover-bg)] md:hidden"
 			onclick={onmenuclick}
 			aria-label="Toggle navigation"
 		>

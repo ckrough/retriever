@@ -41,7 +41,7 @@
 	}
 
 	.mobile-nav__tab {
-		min-height: 44px;
+		min-height: 48px;
 		color: var(--color-surface-500);
 		transition: color 0.15s;
 	}

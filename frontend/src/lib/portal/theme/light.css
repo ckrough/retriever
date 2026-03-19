@@ -1,14 +1,14 @@
 /*
- * Daylight — Light professional theme
+ * Light — Light professional theme
  *
  * Surface: Cream (#F5F0E8) light → Charcoal (#41423D) dark
- * Primary: Coral-600 (#B84A2D) interactive, 4.88:1 on white — PASSES AA
+ * Primary: Deep Coral (#A35945) interactive, 4.55:1 on cream — PASSES AA
  * Secondary: Slate (#2F455B) — headings, nav, emphasis
  * Tertiary: Gray (#50636F) — muted text, dividers
  * Success/Warning/Error: Warm semantic tones
  */
 
-[data-theme='daylight'] {
+[data-theme='light'] {
 	/* --- Spacing & Scaling --- */
 	--spacing: 0.25rem;
 	--text-scaling: 1.067;
@@ -84,18 +84,18 @@
 	--color-surface-contrast-950: var(--color-surface-contrast-light);
 
 	/* --- Primary Scale (Coral) --- */
-	/* Interactive: Coral-600 #B84A2D at 500 — 4.88:1 on white, PASSES AA */
+	/* Interactive: Deep Coral #A35945 at 500 — 4.55:1 on cream, PASSES AA */
 	--color-primary-50: oklch(0.950 0.030 36);
 	--color-primary-100: oklch(0.900 0.055 36);
 	--color-primary-200: oklch(0.840 0.085 36);
 	--color-primary-300: oklch(0.764 0.106 36.87); /* Coral-300 #ED9A82 */
-	--color-primary-400: oklch(0.688 0.133 35.78); /* Coral-400 #E07A5F */
-	--color-primary-500: oklch(0.551 0.149 35.71); /* Coral-600 #B84A2D — interactive */
-	--color-primary-600: oklch(0.490 0.140 35.50);
-	--color-primary-700: oklch(0.430 0.125 35.30);
-	--color-primary-800: oklch(0.370 0.105 35.10);
-	--color-primary-900: oklch(0.310 0.085 34.90);
-	--color-primary-950: oklch(0.260 0.065 34.70);
+	--color-primary-400: oklch(0.688 0.133 35.78); /* Coral-400 #E07A5F — decorative */
+	--color-primary-500: oklch(0.546 0.102 36.02); /* Deep Coral #A35945 — interactive */
+	--color-primary-600: oklch(0.488 0.095 36.00);
+	--color-primary-700: oklch(0.430 0.085 35.80);
+	--color-primary-800: oklch(0.370 0.075 35.60);
+	--color-primary-900: oklch(0.310 0.065 35.40);
+	--color-primary-950: oklch(0.260 0.055 35.20);
 	--color-primary-contrast-dark: var(--color-primary-950);
 	--color-primary-contrast-light: var(--color-primary-50);
 	--color-primary-contrast-50: var(--color-primary-contrast-dark);
@@ -244,11 +244,12 @@
 
 	/* --- Portal Extensions --- */
 	--portal-coral-decorative: oklch(0.688 0.133 35.78); /* #E07A5F — non-text decorative use */
+	--portal-cta-bg: var(--color-primary-500);
 	--portal-sidebar-bg: oklch(0.382 0.047 249.14); /* Slate #2F455B */
 	--portal-card-bg: oklch(1.000 0 0); /* White #FFFFFF */
 	--portal-border-color: oklch(0.925 0.019 80.12); /* #EDE5D8 */
 	--portal-hover-bg: oklch(0.957 0.012 79.78); /* Cream #F5F0E8 */
-	--portal-focus-ring: var(--color-primary-500);
+	--portal-focus-ring: oklch(0.376 0.008 116.18); /* Charcoal #41423D — text color */
 	--portal-sidebar-text: oklch(0.970 0.008 80); /* Light cream */
 	--portal-sidebar-accent: var(--portal-coral-decorative);
 }

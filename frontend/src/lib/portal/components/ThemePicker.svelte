@@ -10,23 +10,20 @@
 	const themes: {
 		id: PortalTheme;
 		name: string;
-		subtitle: string;
 		dot: string;
 		swatchLeft: string;
 		swatchRight: string;
 	}[] = [
 		{
-			id: 'daylight',
-			name: 'Daylight',
-			subtitle: 'Warm & professional',
+			id: 'light',
+			name: 'Light',
 			dot: '#F5F0E8',
 			swatchLeft: '#F5F0E8',
-			swatchRight: '#B84A2D'
+			swatchRight: '#A35945'
 		},
 		{
-			id: 'foundry',
-			name: 'Foundry',
-			subtitle: 'Dark industrial',
+			id: 'dark',
+			name: 'Dark',
 			dot: '#2F455B',
 			swatchLeft: '#1A2835',
 			swatchRight: '#E07A5F'
@@ -34,7 +31,6 @@
 		{
 			id: 'neutral',
 			name: 'Neutral',
-			subtitle: 'Clean & modern',
 			dot: '#FAFAF8',
 			swatchLeft: '#FAFAF8',
 			swatchRight: '#2F455B'
@@ -74,7 +70,7 @@
 <div class="theme-picker relative">
 	<button
 		type="button"
-		class="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-lg px-2 transition-colors hover:bg-[var(--portal-hover-bg)]"
+		class="flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-lg px-2 transition-colors hover:bg-[var(--portal-hover-bg)]"
 		onclick={() => (open = !open)}
 		aria-expanded={open}
 		aria-haspopup="listbox"
@@ -97,7 +93,7 @@
 				<li role="option" aria-selected={theme.id === activeTheme}>
 					<button
 						type="button"
-						class="flex min-h-[44px] w-full items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--portal-hover-bg)]"
+						class="flex min-h-[48px] w-full items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--portal-hover-bg)]"
 						onclick={() => selectTheme(theme.id)}
 					>
 						<span
@@ -106,10 +102,7 @@
 							<span class="h-full w-1/2" style:background-color={theme.swatchLeft}></span>
 							<span class="h-full w-1/2" style:background-color={theme.swatchRight}></span>
 						</span>
-						<span class="flex flex-col items-start">
-							<span class="text-sm font-medium">{theme.name}</span>
-							<span class="text-xs opacity-60">{theme.subtitle}</span>
-						</span>
+						<span class="text-sm font-medium">{theme.name}</span>
 						{#if theme.id === activeTheme}
 							<Check size={16} class="ml-auto text-[var(--color-primary-500)]" />
 						{/if}

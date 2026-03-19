@@ -7,11 +7,11 @@
  */
 
 /** Available portal themes. Defined inline until Phase 2 creates shared types. */
-export type PortalTheme = 'daylight' | 'foundry' | 'neutral';
+export type PortalTheme = 'light' | 'dark' | 'neutral';
 
-const VALID_THEMES: PortalTheme[] = ['daylight', 'foundry', 'neutral'];
+const VALID_THEMES: PortalTheme[] = ['light', 'dark', 'neutral'];
 const STORAGE_KEY = 'portal-theme';
-const DEFAULT_THEME: PortalTheme = 'daylight';
+const DEFAULT_THEME: PortalTheme = 'light';
 
 let currentTheme = $state<PortalTheme>(DEFAULT_THEME);
 

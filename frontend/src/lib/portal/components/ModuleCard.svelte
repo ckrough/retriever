@@ -39,7 +39,7 @@
 
 <style>
 	.module-card {
-		min-height: 44px;
+		min-height: 48px;
 		color: var(--portal-sidebar-text);
 		cursor: pointer;
 		border-left: 3px solid transparent;
