@@ -242,11 +242,12 @@
 
 	/* --- Portal Extensions --- */
 	--portal-coral-decorative: oklch(0.489 0.030 235.95); /* No coral in neutral — uses muted gray-blue */
+	--portal-cta-bg: var(--color-primary-500);
 	--portal-sidebar-bg: oklch(0.376 0.008 116); /* Charcoal */
 	--portal-card-bg: oklch(1.000 0 0); /* White */
 	--portal-border-color: oklch(0.940 0.008 95); /* Warm gray-100 */
 	--portal-hover-bg: oklch(0.970 0.005 100); /* Warm off-white */
-	--portal-focus-ring: var(--color-primary-500);
+	--portal-focus-ring: oklch(0.376 0.008 116.18); /* Charcoal #41423D — text color */
 	--portal-sidebar-text: oklch(0.985 0.003 106.45); /* Off-white */
 	--portal-sidebar-accent: var(--color-primary-400);
 }

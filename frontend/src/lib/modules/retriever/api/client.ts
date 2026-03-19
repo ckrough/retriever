@@ -40,7 +40,7 @@ export class RetrieverApi extends BaseApiClient {
 		return this.request<DocumentUploadResponse>('/api/v1/documents/upload', {
 			method: 'POST',
 			body: formData
-		});
+		}, 120_000);
 	}
 
 	async deleteDocument(id: string): Promise<DocumentDeleteResponse> {

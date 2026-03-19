@@ -47,7 +47,7 @@
 <div class="user-menu relative">
 	<button
 		type="button"
-		class="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-lg px-2 transition-colors hover:bg-[var(--portal-hover-bg)]"
+		class="flex min-h-[48px] min-w-[48px] items-center gap-2 rounded-lg px-2 transition-colors hover:bg-[var(--portal-hover-bg)]"
 		onclick={() => (open = !open)}
 		aria-expanded={open}
 		aria-haspopup="menu"
@@ -73,19 +73,12 @@
 			{#if user}
 				<div class="border-b border-[var(--portal-border-color)] px-4 py-3">
 					<p class="truncate text-sm font-medium">{user.email}</p>
-					{#if user.role}
-						<span
-							class="mt-1 inline-block rounded-full bg-[var(--color-primary-500)]/10 px-2 py-0.5 text-xs font-medium text-[var(--color-primary-500)]"
-						>
-							{user.role}
-						</span>
-					{/if}
 				</div>
 			{/if}
 			<form method="POST" action="/logout">
 				<button
 					type="submit"
-					class="flex min-h-[44px] w-full items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-[var(--portal-hover-bg)]"
+					class="flex min-h-[48px] w-full items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-[var(--portal-hover-bg)]"
 					role="menuitem"
 				>
 					<LogOut size={16} class="opacity-60" />

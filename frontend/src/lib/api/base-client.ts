@@ -19,7 +19,7 @@ export abstract class BaseApiClient {
 		this.timeoutMs = timeoutMs;
 	}
 
-	protected async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+	protected async request<T>(path: string, options: RequestInit = {}, timeoutMs?: number): Promise<T> {
 		const url = `${this.baseUrl}${path}`;
 		const headers: Record<string, string> = {
 			Authorization: `Bearer ${this.token}`,
@@ -31,7 +31,7 @@ export abstract class BaseApiClient {
 		}
 
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+		const timeout = setTimeout(() => controller.abort(), timeoutMs ?? this.timeoutMs);
 
 		try {
 			const response = await fetch(url, {

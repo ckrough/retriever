@@ -56,7 +56,7 @@
 			</span>
 			<button
 				type="button"
-				class="ml-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-[var(--portal-sidebar-text)] opacity-60 transition-opacity hover:opacity-100"
+				class="ml-auto flex min-h-[48px] min-w-[48px] items-center justify-center rounded-lg text-[var(--portal-sidebar-text)] opacity-60 transition-opacity hover:opacity-100"
 				onclick={toggleCollapse}
 				aria-label="Collapse sidebar"
 			>
@@ -65,7 +65,7 @@
 		{:else}
 			<button
 				type="button"
-				class="ml-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-[var(--portal-sidebar-text)] opacity-60 transition-opacity hover:opacity-100"
+				class="ml-auto flex min-h-[48px] min-w-[48px] items-center justify-center rounded-lg text-[var(--portal-sidebar-text)] opacity-60 transition-opacity hover:opacity-100"
 				onclick={toggleCollapse}
 				aria-label="Expand sidebar"
 			>
@@ -134,7 +134,7 @@
 	}
 
 	.nav-link {
-		min-height: 44px;
+		min-height: 48px;
 	}
 
 	.nav-link--collapsed {

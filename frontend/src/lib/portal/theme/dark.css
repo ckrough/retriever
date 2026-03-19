@@ -1,5 +1,5 @@
 /*
- * Foundry — Dark industrial theme
+ * Dark — Dark theme
  *
  * Surface: Slate-dark (#1A2835) dark → Cream (#F5F0E8) light (inverted)
  * Primary: Coral-400 #E07A5F — 5.09:1 on dark backgrounds
@@ -8,13 +8,13 @@
  * Decorative Coral: #ED9A82 (Coral-300)
  */
 
-[data-theme='foundry'] {
+[data-theme='dark'] {
 	/* --- Spacing & Scaling --- */
 	--spacing: 0.25rem;
 	--text-scaling: 1.067;
 
 	/* --- Base Typography --- */
-	--base-font-color: var(--color-surface-950);
+	--base-font-color: var(--color-surface-50); /* Cream — always light text for dark theme */
 	--base-font-color-dark: var(--color-surface-50);
 	--base-font-family: 'Inter', system-ui, sans-serif;
 	--base-font-size: inherit;
@@ -62,8 +62,8 @@
 	--color-surface-100: oklch(0.925 0.019 80.12);
 	--color-surface-200: oklch(0.870 0.020 80);
 	--color-surface-300: oklch(0.750 0.016 82);
-	--color-surface-400: oklch(0.620 0.012 90);
-	--color-surface-500: oklch(0.489 0.030 235.95);
+	--color-surface-400: oklch(0.720 0.012 90); /* Lightened for dark mode text readability */
+	--color-surface-500: oklch(0.650 0.030 235.95); /* Lightened — 4.65:1 on body bg */
 	--color-surface-600: oklch(0.420 0.038 248);
 	--color-surface-700: oklch(0.360 0.042 248);
 	--color-surface-800: oklch(0.320 0.038 248);
@@ -142,8 +142,8 @@
 	--color-tertiary-200: oklch(0.860 0.014 236);
 	--color-tertiary-300: oklch(0.780 0.020 236);
 	--color-tertiary-400: oklch(0.680 0.025 236);
-	--color-tertiary-500: oklch(0.570 0.028 236);
-	--color-tertiary-600: oklch(0.489 0.030 235.95); /* Gray #50636F */
+	--color-tertiary-500: oklch(0.680 0.028 236); /* Lightened — 5.22:1 on body bg */
+	--color-tertiary-600: oklch(0.570 0.030 235.95);
 	--color-tertiary-700: oklch(0.420 0.026 236);
 	--color-tertiary-800: oklch(0.360 0.022 236);
 	--color-tertiary-900: oklch(0.300 0.018 236);
@@ -220,7 +220,7 @@
 	--color-error-200: oklch(0.830 0.090 25);
 	--color-error-300: oklch(0.760 0.125 25);
 	--color-error-400: oklch(0.690 0.155 25);
-	--color-error-500: oklch(0.620 0.180 25);
+	--color-error-500: oklch(0.680 0.180 25); /* Brightened — 4.80:1 on body bg */
 	--color-error-600: oklch(0.560 0.170 25);
 	--color-error-700: oklch(0.500 0.155 25);
 	--color-error-800: oklch(0.440 0.135 25);
@@ -242,11 +242,12 @@
 
 	/* --- Portal Extensions --- */
 	--portal-coral-decorative: oklch(0.764 0.106 36.87); /* Coral-300 #ED9A82 — decorative on dark */
+	--portal-cta-bg: oklch(0.546 0.102 36.02); /* Deep Coral #A35945 — 4.55:1 with cream text */
 	--portal-sidebar-bg: oklch(0.220 0.025 247); /* Darker slate */
-	--portal-card-bg: oklch(0.382 0.047 249.14); /* Slate #2F455B */
-	--portal-border-color: oklch(0.420 0.038 248); /* Slate-600 */
-	--portal-hover-bg: oklch(0.340 0.042 248); /* Slate-700 */
-	--portal-focus-ring: var(--color-primary-500);
+	--portal-card-bg: oklch(0.320 0.035 248); /* Close to body — cards use borders for distinction */
+	--portal-border-color: oklch(0.480 0.035 248); /* Brightened for visible card edges on dark */
+	--portal-hover-bg: oklch(0.380 0.038 248);
+	--portal-focus-ring: oklch(0.957 0.012 79.79); /* Cream #F5F0E8 — text color on dark */
 	--portal-sidebar-text: oklch(0.957 0.012 79.78); /* Cream */
 	--portal-sidebar-accent: var(--portal-coral-decorative);
 }

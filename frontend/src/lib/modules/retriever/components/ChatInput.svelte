@@ -27,23 +27,23 @@
 
 <div class="border-surface-300-700 border-t p-4">
 	<div class="mx-auto flex max-w-3xl gap-2">
-		<div class="relative flex-1">
+		<div class="flex flex-1 flex-col">
 			<textarea
 				bind:value={message}
 				onkeydown={handleKeydown}
 				placeholder="Ask a question..."
 				maxlength={maxLength}
 				rows={1}
-				class="textarea w-full resize-none pr-16"
+				class="textarea w-full resize-none"
 				{disabled}
 			></textarea>
-			<span class="absolute bottom-2 right-2 text-xs text-surface-500">
+			<span class="mt-1 self-end text-xs text-surface-500">
 				{charCount}/{maxLength}
 			</span>
 		</div>
 		<button
 			onclick={handleSubmit}
-			class="btn preset-filled-primary-500 min-h-[44px] min-w-[44px] self-end"
+			class="btn preset-filled-primary-500 min-h-[48px] min-w-[48px] self-end"
 			disabled={!canSubmit}
 		>
 			{#if disabled}

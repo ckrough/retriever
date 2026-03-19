@@ -69,7 +69,7 @@
 		/>
 
 		<!-- Content area -->
-		<main class="flex-1 overflow-y-auto">
+		<main id="main" class="flex-1 overflow-y-auto">
 			{@render children()}
 		</main>
 	</div>
