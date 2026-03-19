@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-03-19)
+
+### Bug Fixes
+
+- HIG/brand remediation — accessibility, dark theme contrast, UX polish
+  ([`99a315c`](https://github.com/ckrough/retriever/commit/99a315ca4c990d402c63a8418270acc4847f5f40))
+
+### Features
+
+- Portal foundation — theming engine, shell components, route migration
+  ([`ffd7b36`](https://github.com/ckrough/retriever/commit/ffd7b36a83c2cdd3c2470f70bb6e3e8da4970e7a))
+
+
 ## v1.3.0 (2026-03-16)
 
 ### Chores
