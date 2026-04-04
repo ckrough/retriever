@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-04-04)
+
+### Features
+
+- Extract frontend to stacker portal repo
+  ([`dde07d4`](https://github.com/ckrough/retriever/commit/dde07d43ec73ab477f7713e7686c3107642dc5de))
+
+
 ## v1.4.0 (2026-03-19)
 
 ### Bug Fixes
