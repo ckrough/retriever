@@ -1,6 +1,6 @@
 # Contributing to Retriever
 
-Retriever is an AI-powered Q&A system using RAG (Retrieval-Augmented Generation) to help users find information in organizational documents. Contributions of all kinds are welcome — bug fixes, features, documentation, and tests.
+Retriever is an AI-powered Q&A system using RAG (Retrieval-Augmented Generation) to help users find information in organizational documents. Contributions of all kinds are welcome: bug fixes, features, documentation, and tests.
 
 ## Quick Start
 
@@ -9,7 +9,7 @@ Retriever is an AI-powered Q&A system using RAG (Retrieval-Augmented Generation)
 git clone https://github.com/your-org/retriever.git
 cd retriever
 cp .env.example .env
-# Edit .env — add your API keys (see Environment Configuration below)
+# Edit .env, add your API keys (see Environment Configuration below)
 
 # Start infrastructure
 supabase start
@@ -36,8 +36,8 @@ npm run dev
 - **Docker** (for postgres + jaeger via `docker compose`)
 - **[Supabase CLI](https://supabase.com/docs/guides/cli)** (for local auth)
 - **API keys:**
-  - [OpenRouter](https://openrouter.ai/keys) — LLM access
-  - [OpenAI](https://platform.openai.com/api-keys) — embeddings and moderation
+  - [OpenRouter](https://openrouter.ai/keys): LLM access
+  - [OpenAI](https://platform.openai.com/api-keys): embeddings and moderation
 
 ## Environment Configuration
 
@@ -51,7 +51,7 @@ OPENAI_API_KEY=your-key-here
 
 3. The remaining defaults work for local development:
    - `DATABASE_URL` points to `localhost:5432` (docker compose postgres)
-   - `SUPABASE_URL` / `SUPABASE_ANON_KEY` — update with values from `supabase status` after `supabase start`
+   - `SUPABASE_URL` / `SUPABASE_ANON_KEY`: update with values from `supabase status` after `supabase start`
    - Cloudflare, Langfuse, and GCP settings are optional (features degrade gracefully without them)
 
 ## Day-to-Day Development
@@ -83,7 +83,7 @@ supabase stop
 uv run ruff check src/ tests/ --fix
 uv run ruff format src/ tests/
 
-# Type checking (strict mode — use python -m mypy, NOT uv run mypy)
+# Type checking (strict mode; use python -m mypy, NOT uv run mypy)
 uv run python -m mypy src/ --strict
 
 # Tests with coverage (80% minimum)
@@ -128,12 +128,12 @@ We use **GitHub Flow**: feature branches → pull request → squash merge to `m
    ```
 
 3. **Branch naming:**
-   - `feature/` — New features
-   - `fix/` — Bug fixes
-   - `docs/` — Documentation
-   - `refactor/` — Code improvements
-   - `test/` — Tests
-   - `chore/` — Maintenance
+   - `feature/`: New features
+   - `fix/`: Bug fixes
+   - `docs/`: Documentation
+   - `refactor/`: Code improvements
+   - `test/`: Tests
+   - `chore/`: Maintenance
 
 4. **Commit, push, and open a PR** against `main`.
 
@@ -151,8 +151,8 @@ Types: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
 
 - **Type hints required** on all function signatures (including return types)
 - **Docstrings** (Google style) on public APIs and non-trivial functions
-- **Error handling** — no bare `except:`, chain with `from` for context
-- **Security** — never commit secrets; store in environment variables; validate user input
+- **Error handling**: no bare `except:`, chain with `from` for context
+- **Security**: never commit secrets; store in environment variables; validate user input
 
 ## Testing
 
@@ -213,4 +213,4 @@ You retain copyright on your contributions. The project does not require a Contr
 
 ### About the Commercial License
 
-Backchain LLC offers this project under a commercial license in addition to AGPL-3.0 for use cases that AGPL does not accommodate (proprietary integration, SaaS deployment without source disclosure). The commercial license covers code authored by Backchain LLC. Outside contributions remain under AGPL-3.0 only — Backchain LLC does not, by virtue of your contribution, acquire the right to relicense your contribution under its commercial license.
+Backchain LLC offers this project under a commercial license in addition to AGPL-3.0 for use cases that AGPL does not accommodate (proprietary integration, SaaS deployment without source disclosure). The commercial license covers code authored by Backchain LLC. Outside contributions remain under AGPL-3.0 only. Backchain LLC does not, by virtue of your contribution, acquire the right to relicense your contribution under its commercial license.
