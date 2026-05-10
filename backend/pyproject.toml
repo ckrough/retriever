@@ -8,8 +8,8 @@ version = "1.5.0"
 description = "AI-powered Q&A system for shelter volunteers"
 readme = "README.md"
 requires-python = ">=3.13"
-license = "MIT"
-authors = [{ name = "Chris Krough" }]
+license = "AGPL-3.0-or-later"
+authors = [{ name = "Backchain LLC" }]
 
 dependencies = [
     "fastapi>=0.115",
