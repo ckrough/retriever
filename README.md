@@ -160,4 +160,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full setup and quality check commands
 
 ## License
 
-MIT
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). See [LICENSE](LICENSE) for the full text.
+
+Copyright (C) 2025 Backchain LLC
+
+### Commercial License
+
+Backchain LLC offers a commercial license for use cases that AGPL-3.0 does not accommodate, including proprietary integration and SaaS deployment without source disclosure. Contact [licensing@backchain.ai](mailto:licensing@backchain.ai) to inquire.
