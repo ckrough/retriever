@@ -208,5 +208,3 @@ retriever/
 ## License of Contributions
 
 This project is licensed under GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). By submitting a contribution, you agree that your contribution is licensed under the same terms.
-
-You retain copyright on your contributions.
