@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Document loading and validation for the RAG pipeline.
 
 Validates file uploads by extension and size. Format-aware limits

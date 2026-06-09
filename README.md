@@ -14,7 +14,9 @@
   <a href="#documentation">Documentation</a>
 </p>
 
----
+# Retriever: AI-Powered Document Q&A with RAG
+
+Retriever is an open-source retrieval-augmented generation (RAG) system for document question-answering. It indexes an organization's PDFs, Word documents, spreadsheets, and web pages, then answers natural-language questions with cited sources. Built by [Chris Krough](https://dev.krough.org) under [Backchain](https://backchain.ai).
 
 Retriever is an AI-powered question-answering system that helps users find information in your organization's policy and procedure documents. Upload your documents, and Retriever uses RAG (Retrieval-Augmented Generation) to provide accurate, sourced answers.
 
@@ -37,7 +39,6 @@ Retriever can be adapted for any organization with documentation that users need
 ### Prerequisites
 
 - Python 3.13+ with [uv](https://docs.astral.sh/uv/)
-- Node.js 22+
 - Docker
 - [Supabase CLI](https://supabase.com/docs/guides/cli)
 - API keys: [OpenRouter](https://openrouter.ai/keys) (LLM) and [OpenAI](https://platform.openai.com/api-keys) (embeddings/moderation)
@@ -45,7 +46,7 @@ Retriever can be adapted for any organization with documentation that users need
 ### Get Running
 
 ```bash
-git clone https://github.com/your-org/retriever.git
+git clone https://github.com/ckrough/retriever.git
 cd retriever
 cp .env.example .env
 # Edit .env with your API keys
@@ -56,12 +57,9 @@ docker compose up -d              # pgvector postgres + jaeger
 cd backend && uv sync --dev
 uv run alembic upgrade head
 uv run uvicorn retriever.main:app --reload --port 8000
-
-# In a separate terminal:
-cd frontend && npm install && npm run dev
 ```
 
-Backend API: [http://localhost:8000/docs](http://localhost:8000/docs) | Frontend: [http://localhost:5173](http://localhost:5173)
+Backend API: [http://localhost:8000/docs](http://localhost:8000/docs). The frontend portal lives in the separate [stacker](https://github.com/ckrough/stacker) repository.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, quality checks, and workflow.
 
@@ -111,8 +109,8 @@ For best results:
 ## Deployment
 
 - **Backend:** Cloud Run via `gcloud run deploy --source ./backend`
-- **Frontend:** Cloudflare Pages
 - **Database:** Supabase (managed Postgres + pgvector)
+- **Frontend:** deployed from the [stacker](https://github.com/ckrough/stacker) repository (Cloudflare Pages)
 
 ### Production Checklist
 
@@ -141,10 +139,10 @@ For best results:
 - **Backend:** Python 3.13+, FastAPI, SQLAlchemy 2.0 async, Pydantic 2.x
 - **LLM:** OpenRouter via Cloudflare AI Gateway
 - **Vector DB:** Supabase Postgres + pgvector (HNSW cosine + GIN full-text)
-- **Frontend:** SvelteKit + Svelte 5 runes + Skeleton UI v4
 - **Auth:** Supabase Auth / JWKS
 - **Observability:** structlog + OpenTelemetry + Langfuse
-- **Deploy:** Cloud Run (backend), Cloudflare Pages (frontend)
+- **Deploy:** Cloud Run (backend)
+- **Frontend:** [stacker](https://github.com/ckrough/stacker) (separate repo): SvelteKit + Svelte 5 runes + Skeleton UI v4
 
 ## Development
 
@@ -160,6 +158,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full setup and quality check commands
 
 ## License
 
-GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). See [LICENSE](LICENSE) for the full text.
+Apache License 2.0 (Apache-2.0). See [LICENSE](LICENSE) for the full text and [NOTICE](NOTICE) for attribution.
 
 Copyright (C) 2025 Backchain LLC
+
+## About / Built by
+
+I'm [Chris Krough](https://dev.krough.org), and I build production AI systems like this one. Retriever is the kind of work I do: retrieval pipelines, LLM safety, and observability shipped as real, deployable software. Find me on [my site](https://dev.krough.org) and [LinkedIn](https://linkedin.com/in/ckrough).
+
+Retriever is developed and maintained under [Backchain](https://backchain.ai), my AI transformation consulting practice. Backchain helps organizations discover where AI works: [Discover Where AI Works](https://backchain.ai).
+
+If Retriever is useful to you, star the repo and reach out. I'm open to collaboration, consulting, and conversations about applied AI.

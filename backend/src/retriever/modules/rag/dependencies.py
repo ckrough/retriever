@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """FastAPI dependency providers for RAG pipeline components."""
 
 from __future__ import annotations

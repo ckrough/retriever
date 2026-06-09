@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Protocol definition for LLM providers."""
 
 from typing import Protocol

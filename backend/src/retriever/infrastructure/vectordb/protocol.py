@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """VectorStore protocol — defines the interface for vector similarity search."""
 
 import uuid

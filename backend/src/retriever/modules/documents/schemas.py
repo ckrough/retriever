@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Pydantic response schemas for the documents module."""
 
 from __future__ import annotations

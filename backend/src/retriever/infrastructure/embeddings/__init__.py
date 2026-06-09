@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Embedding provider infrastructure."""
 
 from retriever.infrastructure.embeddings.exceptions import (

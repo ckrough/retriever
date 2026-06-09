@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """RAG-specific prompts for Retriever.
 
 These prompts are designed for retrieval-augmented generation,

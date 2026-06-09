@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Docling-based document processing for the RAG pipeline.
 
 All Docling imports are deferred to method bodies to avoid loading
