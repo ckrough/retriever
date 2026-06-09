@@ -6,7 +6,7 @@ Retriever is an AI-powered Q&A system using RAG (Retrieval-Augmented Generation)
 
 ```bash
 # Clone (or fork first, then clone your fork)
-git clone https://github.com/your-org/retriever.git
+git clone https://github.com/ckrough/retriever.git
 cd retriever
 cp .env.example .env
 # Edit .env, add your API keys (see Environment Configuration below)
@@ -21,18 +21,13 @@ uv sync --dev
 uv run alembic upgrade head
 uv run uvicorn retriever.main:app --reload --port 8000
 # → http://localhost:8000/health
-
-# Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
-# → http://localhost:5173
 ```
+
+The frontend portal lives in the separate [stacker](https://github.com/ckrough/stacker) repository.
 
 ## Prerequisites
 
 - **Python 3.13+** with [uv](https://docs.astral.sh/uv/)
-- **Node.js 22+** with npm
 - **Docker** (for postgres + jaeger via `docker compose`)
 - **[Supabase CLI](https://supabase.com/docs/guides/cli)** (for local auth)
 - **API keys:**
@@ -61,13 +56,9 @@ OPENAI_API_KEY=your-key-here
 supabase start
 docker compose up -d
 
-# Backend (terminal 1)
+# Backend
 cd backend
 uv run uvicorn retriever.main:app --reload --port 8000
-
-# Frontend (terminal 2)
-cd frontend
-npm run dev
 
 # Stop everything
 docker compose down
@@ -96,19 +87,6 @@ uv run pip-audit
 uv run ruff check src/ tests/ --fix && uv run ruff format src/ tests/ && \
 uv run python -m mypy src/ --strict && \
 uv run python -m pytest tests/ --cov=src/retriever --cov-fail-under=80
-```
-
-### Frontend (run from `frontend/`)
-
-```bash
-# Type checking (TypeScript + Svelte)
-npm run check
-
-# Production build
-npm run build
-
-# E2E tests (requires build first)
-npm run test:e2e
 ```
 
 ## Making Changes
@@ -163,7 +141,6 @@ Types: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
 ## PR Checklist
 
 - [ ] All backend quality checks pass
-- [ ] Frontend checks pass (`npm run check && npm run build`)
 - [ ] New code has tests (80% coverage)
 - [ ] No secrets or API keys committed
 - [ ] Documentation updated if needed
@@ -174,9 +151,6 @@ Types: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
 
 Recommended extensions:
 - Python + Pylance
-- Svelte for VS Code
-- ESLint
-- Tailwind CSS IntelliSense
 
 Debug config (F5) and quality check tasks (Ctrl+Shift+P → Run Task) are preconfigured in `.vscode/`.
 
@@ -187,10 +161,10 @@ retriever/
 ├── backend/           # FastAPI + SQLAlchemy + pgvector (active development)
 │   ├── src/retriever/ # Application source
 │   └── tests/         # Backend tests
-├── frontend/          # SvelteKit + Svelte 5 + Skeleton UI (active development)
-│   └── src/           # SvelteKit source
 └── docs/              # Architecture docs and ADRs
 ```
+
+The frontend portal lives in the separate [stacker](https://github.com/ckrough/stacker) repository.
 
 ## Understanding the Codebase
 
@@ -201,10 +175,12 @@ retriever/
 
 ## Getting Help
 
-- Check existing [issues](https://github.com/your-org/retriever/issues) first
+- Check existing [issues](https://github.com/ckrough/retriever/issues) first
 - Open a new issue with context: what you tried, error messages, environment details
 - See [CLAUDE.md](CLAUDE.md) for gotchas and non-obvious patterns
 
 ## License of Contributions
 
-This project is licensed under GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). By submitting a contribution, you agree that your contribution is licensed under the same terms.
+This project is licensed under the Apache License 2.0 (Apache-2.0). By submitting a contribution, you agree that your contribution is licensed under Apache-2.0. You retain copyright on your contributions.
+
+There is no Contributor License Agreement (CLA), no Developer Certificate of Origin (DCO) sign-off, and no copyright assignment. The public license is the license.

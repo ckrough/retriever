@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """OpenAI embedding provider implementation."""
 
 from datetime import timedelta

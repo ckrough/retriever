@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Request ID middleware for tracing requests through the system."""
 
 from __future__ import annotations

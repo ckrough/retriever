@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """FastAPI routes for conversation history."""
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Prompt injection detection using pattern matching."""
 
 from __future__ import annotations

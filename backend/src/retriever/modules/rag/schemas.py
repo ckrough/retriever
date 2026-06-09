@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Schemas for the RAG module.
 
 Pydantic models and Protocol definitions for document processing

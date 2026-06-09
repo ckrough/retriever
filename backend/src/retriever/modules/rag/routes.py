@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """FastAPI routes for the RAG ask endpoint."""
 
 from __future__ import annotations

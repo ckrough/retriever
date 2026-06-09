@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Langfuse LLM observability integration.
 
 Provides @observe() decorator for tracing LLM calls with token tracking

@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Structlog configuration with JSON output and OTel trace correlation."""
 
 import logging

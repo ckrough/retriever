@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """SQLAlchemy domain models."""
 
 from retriever.models.base import Base

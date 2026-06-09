@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Backchain LLC
+# SPDX-License-Identifier: Apache-2.0
+
 """Document repository — async persistence for RAG source documents."""
 
 from __future__ import annotations
