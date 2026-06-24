@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  <strong>ARCHIVED - See https://github.com/backchainai/evermore </strong>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#configuration">Configuration</a> •
